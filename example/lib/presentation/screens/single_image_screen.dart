@@ -28,16 +28,13 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
   Uint8List? _annotatedImage;
 
   late YOLO _yolo;
-  String _modelPathForYOLO =
-      'yolo11n-seg'; // Default asset path for non-iOS or if local copy fails
+  String _modelPathForYOLO = 'yolo11n-seg'; // Default asset path for non-iOS or if local copy fails
   bool _isModelReady = false;
 
   // Name of the .mlpackage directory in local storage (after unzipping)
-  final String _mlPackageDirName =
-      'yolo11n-seg.mlpackage'; // Changed to yolo11n
+  final String _mlPackageDirName = 'yolo11n-seg.mlpackage'; // Changed to yolo11n
   // Name of the zip file in assets (e.g., assets/models/yolo11n.mlpackage.zip)
-  final String _mlPackageZipAssetName =
-      'yolo11n-seg.mlpackage.zip'; // Changed to yolo11n
+  final String _mlPackageZipAssetName = 'yolo11n-seg.mlpackage.zip'; // Changed to yolo11n
 
   @override
   void initState() {
@@ -99,8 +96,7 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
   Future<String?> _copyMlPackageFromAssets() async {
     try {
       final Directory appDocDir = await getApplicationDocumentsDirectory();
-      final String localMlPackageDirPath =
-          '${appDocDir.path}/$_mlPackageDirName';
+      final String localMlPackageDirPath = '${appDocDir.path}/$_mlPackageDirName';
       final Directory localMlPackageDir = Directory(localMlPackageDirPath);
 
       final manifestFile = File('$localMlPackageDirPath/Manifest.json');
@@ -239,8 +235,7 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
           _detections = [];
         }
 
-        if (result.containsKey('annotatedImage') &&
-            result['annotatedImage'] is Uint8List) {
+        if (result.containsKey('annotatedImage') && result['annotatedImage'] is Uint8List) {
           _annotatedImage = result['annotatedImage'] as Uint8List;
         } else {
           _annotatedImage = null;

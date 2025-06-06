@@ -2,6 +2,7 @@
 
 export 'yolo.dart';
 export 'yolo_exceptions.dart';
+export 'yolo_image_processor.dart';
 export 'yolo_result.dart';
 export 'yolo_task.dart';
 export 'yolo_view.dart';

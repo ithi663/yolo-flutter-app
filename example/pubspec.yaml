@@ -7,7 +7,7 @@ description: "Demonstrates how to use the ultralytics_yolo plugin."
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 environment:
-  sdk: ^3.5.3
+  sdk: ">=3.4.0 <4.0.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -63,9 +63,14 @@ flutter:
   assets:
     - assets/
     - assets/models/
+    # iOS Models (Core ML format) - Official Ultralytics builds
+    - assets/models/yolo11n.mlpackage.zip
+    - assets/models/yolo11n-seg.mlpackage.zip
+    # Android Models (TensorFlow Lite format) - Official Ultralytics builds
+    - assets/models/yolo11n.tflite
+    - assets/models/yolo11n-seg.tflite
+    - assets/models/yolo11n_int8.tflite  # Quantized for better performance
 #    - assets/models/yolo11n.mlmodel # Existing mlmodel
-# Asset for the zipped .mlpackage
-#    - assets/models/yolo11n.mlpackage.zip  Using yolo11n for the test mlpackage
 
 # An image asset can refer to one or more resolution-specific "variants", see
 # https://flutter.dev/to/resolution-aware-images

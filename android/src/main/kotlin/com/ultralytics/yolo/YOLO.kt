@@ -90,6 +90,16 @@ class YOLO(
     }
 
     /**
+     * Predict using a bitmap input without generating annotated image (optimized for static processing)
+     * @param bitmap The bitmap to process
+     * @param rotateForCamera Whether to rotate the image for camera processing, defaults to false for standard bitmap inference
+     */
+    fun predictWithoutAnnotation(bitmap: Bitmap, rotateForCamera: Boolean = false): YOLOResult {
+        val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera)
+        return result.copy(originalImage = bitmap)
+    }
+
+    /**
      * Predict using an ImageProxy (from CameraX)
      * Always applies rotation for camera feed
      */

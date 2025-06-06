@@ -9,6 +9,10 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
   private static var instanceChannels: [String: FlutterMethodChannel] = [:]
   // Store the registrar for creating new channels
   private static var pluginRegistrar: FlutterPluginRegistrar?
+  
+  // Model cache for reusing YOLO instances
+  private static var modelCache: [String: YOLO] = [:]
+  private static let cacheQueue = DispatchQueue(label: "yolo.model.cache", attributes: .concurrent)
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     // Store the registrar for later use
@@ -123,6 +127,37 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
     }
 
     return resultMap
+  }
+  
+  // Helper function to get or create cached YOLO model
+  private static func getOrCreateModel(modelPath: String, task: YOLOTask, completion: @escaping (Result<YOLO, Error>) -> Void) {
+    let key = "\(modelPath)-\(task)"
+    
+    cacheQueue.async {
+      if let cachedModel = modelCache[key] {
+        DispatchQueue.main.async {
+          completion(.success(cachedModel))
+        }
+        return
+      }
+      
+      // Create new model
+      YOLO(modelPath, task: task) { result in
+        switch result {
+        case .success(let yolo):
+          cacheQueue.async(flags: .barrier) {
+            modelCache[key] = yolo
+          }
+          DispatchQueue.main.async {
+            completion(.success(yolo))
+          }
+        case .failure(let error):
+          DispatchQueue.main.async {
+            completion(.failure(error))
+          }
+        }
+      }
+    }
   }
 
   private func getStoragePaths() -> [String: String?] {
@@ -313,8 +348,190 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
           )
         }
 
+      case "detectInImage":
+        guard let args = call.arguments as? [String: Any],
+          let imageData = args["imageBytes"] as? FlutterStandardTypedData,
+          let modelPath = args["modelPath"] as? String,
+          let taskString = args["task"] as? String
+        else {
+          result(
+            FlutterError(
+              code: "bad_args", message: "Invalid arguments for detectInImage", details: nil)
+          )
+          return
+        }
+
+        let confidenceThreshold = args["confidenceThreshold"] as? Double ?? 0.25
+        let iouThreshold = args["iouThreshold"] as? Double ?? 0.45
+        let maxDetections = args["maxDetections"] as? Int ?? 100
+        let generateAnnotatedImage = args["generateAnnotatedImage"] as? Bool ?? false
+        let task = YOLOTask.fromString(taskString)
+
+        // Convert image data to UIImage
+        guard let uiImage = UIImage(data: imageData.data) else {
+          result(
+            FlutterError(
+              code: "image_error", message: "Failed to decode image", details: nil)
+          )
+          return
+        }
+
+        performStaticImageDetection(
+          image: uiImage,
+          modelPath: modelPath,
+          task: task,
+          confidenceThreshold: confidenceThreshold,
+          iouThreshold: iouThreshold,
+          maxDetections: maxDetections,
+          generateAnnotatedImage: generateAnnotatedImage,
+          result: result
+        )
+
+      case "detectInImageFile":
+        guard let args = call.arguments as? [String: Any],
+          let imagePath = args["imagePath"] as? String,
+          let modelPath = args["modelPath"] as? String,
+          let taskString = args["task"] as? String
+        else {
+          result(
+            FlutterError(
+              code: "bad_args", message: "Invalid arguments for detectInImageFile", details: nil)
+          )
+          return
+        }
+
+        let confidenceThreshold = args["confidenceThreshold"] as? Double ?? 0.25
+        let iouThreshold = args["iouThreshold"] as? Double ?? 0.45
+        let maxDetections = args["maxDetections"] as? Int ?? 100
+        let generateAnnotatedImage = args["generateAnnotatedImage"] as? Bool ?? false
+        let task = YOLOTask.fromString(taskString)
+
+        // Load image from file
+        guard let uiImage = UIImage(contentsOfFile: imagePath) else {
+          result(
+            FlutterError(
+              code: "image_error", 
+              message: "Failed to load image from file: \(imagePath)", 
+              details: nil
+            )
+          )
+          return
+        }
+
+        performStaticImageDetection(
+          image: uiImage,
+          modelPath: modelPath,
+          task: task,
+          confidenceThreshold: confidenceThreshold,
+          iouThreshold: iouThreshold,
+          maxDetections: maxDetections,
+          generateAnnotatedImage: generateAnnotatedImage,
+          result: result
+        )
+
       default:
         result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  // Helper function to perform static image detection
+  private func performStaticImageDetection(
+    image: UIImage,
+    modelPath: String,
+    task: YOLOTask,
+    confidenceThreshold: Double,
+    iouThreshold: Double,
+    maxDetections: Int,
+    generateAnnotatedImage: Bool,
+    result: @escaping FlutterResult
+  ) {
+    // Use cached model and run inference on background queue
+    DispatchQueue.global(qos: .userInitiated).async {
+      YOLOPlugin.getOrCreateModel(modelPath: modelPath, task: task) { yoloResult in
+        switch yoloResult {
+        case .success(let yolo):
+          // Set the thresholds
+          yolo.confidenceThreshold = confidenceThreshold
+          yolo.iouThreshold = iouThreshold
+          
+          // Run inference using the YOLO callable function
+          let inferenceResult = yolo(image)
+        
+        // Convert results to Flutter format
+        var detections: [[String: Any]] = []
+        let limitedResults = Array(inferenceResult.boxes.prefix(maxDetections))
+        
+        for (index, box) in limitedResults.enumerated() {
+          var detection: [String: Any] = [
+            "classIndex": box.index,
+            "className": box.cls,
+            "confidence": Double(box.conf),
+            "boundingBox": [
+              "left": Double(box.xywh.minX),
+              "top": Double(box.xywh.minY),
+              "right": Double(box.xywh.maxX),
+              "bottom": Double(box.xywh.maxY)
+            ],
+            "normalizedBox": [
+              "left": Double(box.xywhn.minX),
+              "top": Double(box.xywhn.minY),
+              "right": Double(box.xywhn.maxX),
+              "bottom": Double(box.xywhn.maxY)
+            ]
+          ]
+          
+          // Add task-specific data
+          switch task {
+          case .segment:
+            // Add mask data if available
+            if let masks = inferenceResult.masks, index < masks.masks.count {
+              let mask = masks.masks[index]
+              // Convert mask to list of lists for Flutter
+              let maskData = mask.map { row in
+                row.map { Double($0) }
+              }
+              detection["mask"] = maskData
+            }
+          case .pose:
+            // Add keypoints if available
+            if index < inferenceResult.keypointsList.count {
+              let keypoints = inferenceResult.keypointsList[index]
+              // Convert to flat array format like in the stream data
+              var keypointsFlat: [Double] = []
+              for i in 0..<keypoints.xyn.count {
+                keypointsFlat.append(Double(keypoints.xyn[i].x))
+                keypointsFlat.append(Double(keypoints.xyn[i].y))
+                if i < keypoints.conf.count {
+                  keypointsFlat.append(Double(keypoints.conf[i]))
+                } else {
+                  keypointsFlat.append(0.0)  // Default confidence if missing
+                }
+              }
+              detection["keypoints"] = keypointsFlat
+            }
+          default:
+            break // Other tasks handled by base detection data
+          }
+          
+          detections.append(detection)
+        }
+        
+          DispatchQueue.main.async {
+            result(detections)
+          }
+          
+        case .failure(let error):
+          DispatchQueue.main.async {
+            result(
+              FlutterError(
+                code: "model_load_error", 
+                message: "Failed to load YOLO model: \(error.localizedDescription)", 
+                details: nil
+              )
+            )
+          }
+        }
       }
     }
   }

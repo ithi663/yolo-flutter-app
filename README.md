@@ -17,15 +17,17 @@ Welcome to the Ultralytics YOLO Flutter plugin! Integrate cutting-edge [Ultralyt
 
 **✨ Why Choose YOLO Flutter?**
 
-| Feature         | Android | iOS |
-| --------------- | ------- | --- |
-| Detection       | ✅      | ✅  |
-| Classification  | ✅      | ✅  |
-| Segmentation    | ✅      | ✅  |
-| Pose Estimation | ✅      | ✅  |
-| OBB Detection   | ✅      | ✅  |
+| Feature         | Android | iOS | Real-time | Static Images |
+| --------------- | ------- | --- | --------- | ------------- |
+| Detection       | ✅      | ✅  | ✅        | ✅            |
+| Classification  | ✅      | ✅  | ✅        | ✅            |
+| Segmentation    | ✅      | ✅  | ✅        | ✅            |
+| Pose Estimation | ✅      | ✅  | ✅        | ✅            |
+| OBB Detection   | ✅      | ✅  | ✅        | ✅            |
 
 - **Official Ultralytics Plugin** - Direct from YOLO creators
+- **Automatic Model Downloads** - No manual setup required, models download on-demand
+- **Dual Processing Modes** - Real-time camera streams + static image processing
 - **Real-time Performance** - Up to 30 FPS on modern devices
 - **5 AI Tasks** - Detection, Segmentation, Classification, Pose, OBB
 - **Cross-platform** - iOS & Android with single codebase
@@ -33,10 +35,12 @@ Welcome to the Ultralytics YOLO Flutter plugin! Integrate cutting-edge [Ultralyt
 
 ## ⚡ Quick Start (2 minutes)
 
+### 🎥 Real-time Camera Processing
+
 ```dart
 import 'package:ultralytics_yolo/ultralytics_yolo.dart';
 
-// Add this widget and you're detecting objects!
+// Add this widget and you're detecting objects in real-time!
 YOLOView(
   modelPath: 'yolo11n',
   task: YOLOTask.detect,
@@ -49,17 +53,41 @@ YOLOView(
 )
 ```
 
+### 📸 Static Image Processing
+
+```dart
+import 'dart:io';
+import 'package:ultralytics_yolo/ultralytics_yolo.dart';
+
+// Process individual images with ease!
+final processor = YOLOImageProcessor();
+
+// From file
+final imageFile = File('path/to/image.jpg');
+final imageBytes = await imageFile.readAsBytes();
+
+final results = await processor.detectInImage(
+  imageBytes,
+  modelPath: 'yolo11n',
+  task: YOLOTask.detect,
+  confidenceThreshold: 0.5,
+  iouThreshold: 0.4,
+);
+
+print('Detected ${results.length} objects in the image!');
+```
+
 **[▶️ Try the Live Demo](./example)** | **[📖 Full Setup Guide](doc/install.md)**
 
 ## 🎯 What You Can Build
 
-| Task                | Description                    | Use Cases                     | Performance |
-| ------------------- | ------------------------------ | ----------------------------- | ----------- |
-| **Detection**       | Find objects & their locations | Security, Inventory, Shopping | 25-30 FPS   |
-| **Segmentation**    | Pixel-perfect object masks     | Photo editing,                | 15-25 FPS   |
-| **Classification**  | Identify image categories      | Content moderation, Tagging   | 30+ FPS     |
-| **Pose Estimation** | Human pose & keypoints         | Fitness apps, Motion capture  | 20-30 FPS   |
-| **OBB Detection**   | Rotated bounding boxes         | Aerial imagery                | 20-25 FPS   |
+| Task                | Model         | Description                    | Use Cases                     | Real-time | Static |
+| ------------------- | ------------- | ------------------------------ | ----------------------------- | --------- | ------ |
+| **Detection**       | `yolo11n`     | Find objects & their locations | Security, Inventory, Shopping | 25-30 FPS | ✅     |
+| **Segmentation**    | `yolo11n-seg` | Pixel-perfect object masks     | Photo editing, Medical        | 15-25 FPS | ✅     |
+| **Classification**  | `yolo11n-cls` | Identify image categories      | Content moderation, Tagging   | 30+ FPS   | ✅     |
+| **Pose Estimation** | `yolo11n-pose`| Human pose & keypoints         | Fitness apps, Motion capture  | 20-30 FPS | ✅     |
+| **OBB Detection**   | `yolo11n-obb` | Rotated bounding boxes         | Aerial imagery, Documents     | 20-25 FPS | ✅     |
 
 **[📱 See Examples →](doc/usage.md)** | **[⚡ Performance Guide →](doc/performance.md)**
 
@@ -80,25 +108,124 @@ flutter pub get
 
 ### 3. Add a model
 
-You can get the model in one of the following ways:
+The plugin supports **automatic model downloading** and manual bundling. Models are automatically downloaded when referenced by name (e.g., `'yolo11n'`).
 
-1. Download from the [release assets](https://github.com/ultralytics/yolo-flutter-app/releases/tag/v0.0.0) of this repository
+**📋 Available Models:**
+- `yolo11n` - Object Detection (6.2MB)
+- `yolo11n-seg` - Instance Segmentation (6.9MB) 
+- `yolo11n-pose` - Pose Estimation (6.8MB)
+- `yolo11n-cls` - Image Classification (5.0MB)
+- `yolo11n-obb` - Oriented Bounding Boxes (6.4MB)
 
-2. Get it from [Ultralytics HUB](https://www.ultralytics.com/hub)
+**🔄 Three Ways to Get Models:**
 
-3. Export it from [Ultralytics/ultralytics](https://github.com/ultralytics/ultralytics) ([CoreML](https://docs.ultralytics.com/ja/integrations/coreml/)/[TFLite](https://docs.ultralytics.com/integrations/tflite/))
+1. **Automatic Download** (Recommended) - Just use the model name:
+   ```dart
+   YOLOView(modelPath: 'yolo11n', task: YOLOTask.detect)
+   ```
 
-**[📥 Download Models](doc/install.md#models)** |
+2. **Manual Bundle** - For offline apps or faster startup:
+   - **iOS**: Drag `.mlpackage`/`.mlmodel` into `ios/Runner.xcworkspace`
+   - **Android**: Place `.tflite` files in `android/app/src/main/assets/`
 
-Bundle the model with your app using the following method.
+3. **Download from Sources**:
+   - [Release Assets](https://github.com/ultralytics/yolo-flutter-app/releases/tag/v0.0.0)
+   - [Ultralytics HUB](https://www.ultralytics.com/hub)
+   - Export from [ultralytics](https://github.com/ultralytics/ultralytics) ([CoreML](https://docs.ultralytics.com/ja/integrations/coreml/)/[TFLite](https://docs.ultralytics.com/integrations/tflite/))
 
-For iOS: Drag and drop mlpackage/mlmodel directly into **ios/Runner.xcworkspace** and set target to Runner.
-
-For Android: Create a folder called **android/app/src/main/assets** and place tflite in it.
+**[📖 Complete Model Loading Guide →](LOAD_MODULE_GUIDE.md)** | **[📥 Download Models →](doc/install.md#models)**
 
 ### 4. Platform-Specific Setup
 
 **[🔧 Setup Guide](doc/install.md)**
+
+## 🎯 Processing Modes
+
+### 🎥 Real-time Camera Processing
+
+Perfect for live applications like security monitoring, augmented reality, or real-time object tracking:
+
+```dart
+YOLOView(
+  modelPath: 'yolo11n',
+  task: YOLOTask.detect,
+  confidenceThreshold: 0.5,
+  iouThreshold: 0.4,
+  onResult: (results) {
+    // Handle real-time results
+    for (final result in results) {
+      print('Live detection: ${result.className}');
+    }
+  },
+)
+```
+
+### 📸 Static Image Processing
+
+Ideal for batch processing, photo analysis, or user-uploaded content:
+
+```dart
+final processor = YOLOImageProcessor();
+
+// ⚡ Optimized processing (recommended for production)
+final results = await processor.detectInImage(
+  imageBytes,  // Uint8List from any source
+  modelPath: 'yolo11n',
+  task: YOLOTask.detect,
+  confidenceThreshold: 0.5,
+  iouThreshold: 0.4,
+  maxDetections: 100,
+  generateAnnotatedImage: false, // 🚀 Faster processing
+);
+
+// 🎨 With annotated image (slower but includes visual output)
+final resultsWithImage = await processor.detectInImage(
+  imageBytes,
+  modelPath: 'yolo11n',
+  task: YOLOTask.detect,
+  generateAnnotatedImage: true, // Generates annotated image
+);
+
+// Or process directly from file path
+final fileResults = await processor.detectInImageFile(
+  '/path/to/image.jpg',
+  modelPath: 'yolo11n',
+  task: YOLOTask.segment,
+  generateAnnotatedImage: false, // Optimized for speed
+);
+```
+
+**🚀 Performance Features:**
+- **Background Processing**: Heavy inference runs on background threads
+- **Model Caching**: Models are cached and reused automatically
+- **Optimized Mode**: Disable `generateAnnotatedImage` for 2-3x faster processing
+- **Memory Efficient**: Reduced memory usage for large batch processing
+
+### 🔄 Image Sources for Static Processing
+
+The static image processor supports multiple input sources:
+
+```dart
+// 1. From File
+final file = File('image.jpg');
+final bytes = await file.readAsBytes();
+
+// 2. From Assets
+final assetBytes = await rootBundle.load('assets/image.jpg');
+final bytes = assetBytes.buffer.asUint8List();
+
+// 3. From Network
+final response = await http.get(Uri.parse('https://example.com/image.jpg'));
+final bytes = response.bodyBytes;
+
+// 4. From Image Picker
+final picker = ImagePicker();
+final image = await picker.pickImage(source: ImageSource.gallery);
+final bytes = await image!.readAsBytes();
+
+// Process any of these sources
+final results = await processor.detectInImage(bytes, ...);
+```
 
 ## 🏆 Trusted by Developers
 
@@ -115,6 +242,7 @@ For Android: Create a folder called **android/app/src/main/assets** and place tf
 | -------------------------------------------------- | --------------------------------- | --------------- |
 | **[Installation Guide](doc/install.md)**           | Installation, setup, requirements | New users       |
 | **[Quick Start](doc/quickstart.md)**               | 2-minute setup guide              | New users       |
+| **[Model Loading Guide](LOAD_MODULE_GUIDE.md)**    | Complete model loading reference  | All users       |
 | **[Usage Guide](doc/usage.md)**                    | Common use cases & code samples   | All users       |
 | **[Performance Optimization](doc/performance.md)** | Inference control & tuning        | Production apps |
 | **[API Reference](doc/api.md)**                    | Complete technical reference      | Developers      |
@@ -175,5 +303,6 @@ Encountering issues or have feature requests related to Ultralytics YOLO? Please
   <img src="https://github.com/ultralytics/assets/raw/main/social/logo-transparent.png" width="3%" alt="space">
   <a href="https://ultralytics.com/bilibili"><img src="https://github.com/ultralytics/assets/raw/main/social/logo-social-bilibili.png" width="3%" alt="Ultralytics BiliBili"></a>
   <img src="https://github.com/ultralytics/assets/raw/main/social/logo-transparent.png" width="3%" alt="space">
+  <a href="https://discord.com/invite/ultralytics"><img src="https://github.com/ultralytics/assets/raw/main/social/logo-social-discord.png" width="3%" alt="space">
   <a href="https://discord.com/invite/ultralytics"><img src="https://github.com/ultralytics/assets/raw/main/social/logo-social-discord.png" width="3%" alt="Ultralytics Discord"></a>
 </div>

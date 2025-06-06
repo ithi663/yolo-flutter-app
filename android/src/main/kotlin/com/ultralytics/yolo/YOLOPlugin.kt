@@ -3,6 +3,7 @@
 package com.ultralytics.yolo
 
 import android.app.Activity
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RectF
@@ -13,10 +14,20 @@ import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.PluginRegistry // Added for RequestPermissionsResultListener
+import io.flutter.plugin.common.MethodChannel.MethodCallHandler
+import io.flutter.plugin.common.MethodChannel.Result
+import io.flutter.plugin.common.PluginRegistry
+import io.flutter.plugin.common.StandardMessageCodec
+import io.flutter.plugin.platform.PlatformView
+import io.flutter.plugin.platform.PlatformViewFactory
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler, PluginRegistry.RequestPermissionsResultListener {
+class YOLOPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, PluginRegistry.RequestPermissionsResultListener {
 
   private lateinit var methodChannel: MethodChannel
   private val instanceChannels = mutableMapOf<String, MethodChannel>()
@@ -26,6 +37,9 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
   private val TAG = "YOLOPlugin"
   private lateinit var viewFactory: YOLOPlatformViewFactory
   private lateinit var binaryMessenger: io.flutter.plugin.common.BinaryMessenger
+  
+  // Model cache for reusing YOLO instances
+  private val modelCache = ConcurrentHashMap<String, YOLO>()
 
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     // Store application context and binary messenger for later use
@@ -87,6 +101,9 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
     Log.d(TAG, "YoloPlugin detached from engine")
     // Clean up view factory resources
     viewFactory.dispose()
+    // Clean up model cache
+    modelCache.clear()
+    Log.d(TAG, "Cleared model cache")
     // YOLO class doesn't need explicit release
   }
   
@@ -390,6 +407,92 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
         }
       }
       
+      "detectInImage" -> {
+        try {
+          val args = call.arguments as? Map<*, *>
+          val imageData = args?.get("imageBytes") as? ByteArray
+          val modelPath = args?.get("modelPath") as? String
+          val taskString = args?.get("task") as? String
+          val confidenceThreshold = args?.get("confidenceThreshold") as? Double ?: 0.25
+          val iouThreshold = args?.get("iouThreshold") as? Double ?: 0.45
+          val maxDetections = args?.get("maxDetections") as? Int ?: 100
+          val generateAnnotatedImage = args?.get("generateAnnotatedImage") as? Boolean ?: false
+
+          if (imageData == null || modelPath == null || taskString == null) {
+            result.error("bad_args", "Missing required arguments for detectInImage", null)
+            return
+          }
+          
+          // Convert byte array to bitmap
+          val bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.size)
+          if (bitmap == null) {
+            result.error("image_error", "Failed to decode image", null)
+            return
+          }
+          
+          val resolvedPath = resolveModelPath(modelPath)
+          val task = YOLOTask.valueOf(taskString.uppercase())
+          
+          // Perform static image detection
+          performStaticImageDetection(
+            bitmap = bitmap,
+            modelPath = resolvedPath,
+            task = task,
+            confidenceThreshold = confidenceThreshold.toFloat(),
+            iouThreshold = iouThreshold.toFloat(),
+            maxDetections = maxDetections,
+            generateAnnotatedImage = generateAnnotatedImage,
+            result = result
+          )
+        } catch (e: Exception) {
+          Log.e(TAG, "Error during detectInImage", e)
+          result.error("detection_error", "Error during detectInImage: ${e.message}", null)
+        }
+      }
+      
+      "detectInImageFile" -> {
+        try {
+          val args = call.arguments as? Map<*, *>
+          val imagePath = args?.get("imagePath") as? String
+          val modelPath = args?.get("modelPath") as? String
+          val taskString = args?.get("task") as? String
+          val confidenceThreshold = args?.get("confidenceThreshold") as? Double ?: 0.25
+          val iouThreshold = args?.get("iouThreshold") as? Double ?: 0.45
+          val maxDetections = args?.get("maxDetections") as? Int ?: 100
+          val generateAnnotatedImage = args?.get("generateAnnotatedImage") as? Boolean ?: false
+
+          if (imagePath == null || modelPath == null || taskString == null) {
+            result.error("bad_args", "Missing required arguments for detectInImageFile", null)
+            return
+          }
+          
+          // Load bitmap from file
+          val bitmap = BitmapFactory.decodeFile(imagePath)
+          if (bitmap == null) {
+            result.error("image_error", "Failed to load image from file: $imagePath", null)
+            return
+          }
+          
+          val resolvedPath = resolveModelPath(modelPath)
+          val task = YOLOTask.valueOf(taskString.uppercase())
+          
+          // Perform static image detection
+          performStaticImageDetection(
+            bitmap = bitmap,
+            modelPath = resolvedPath,
+            task = task,
+            confidenceThreshold = confidenceThreshold.toFloat(),
+            iouThreshold = iouThreshold.toFloat(),
+            maxDetections = maxDetections,
+            generateAnnotatedImage = generateAnnotatedImage,
+            result = result
+          )
+        } catch (e: Exception) {
+          Log.e(TAG, "Error during detectInImageFile", e)
+          result.error("detection_error", "Error during detectInImageFile: ${e.message}", null)
+        }
+      }
+      
       else -> result.notImplemented()
     }
   }
@@ -435,5 +538,140 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
       "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
       "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack"
     )
+  }
+  
+  // Helper function to get or create cached YOLO model
+  private fun getOrCreateModel(modelPath: String, task: YOLOTask): YOLO {
+    val key = "$modelPath-$task"
+    return modelCache.getOrPut(key) {
+      YOLO(applicationContext, modelPath, task)
+    }
+  }
+  
+  // Helper function to perform static image detection
+  private fun performStaticImageDetection(
+    bitmap: Bitmap,
+    modelPath: String,
+    task: YOLOTask,
+    confidenceThreshold: Float,
+    iouThreshold: Float,
+    maxDetections: Int,
+    generateAnnotatedImage: Boolean,
+    result: MethodChannel.Result
+  ) {
+    // Move heavy processing to background thread
+    CoroutineScope(Dispatchers.Default).launch {
+      try {
+        Log.d(TAG, "Starting static image detection on background thread")
+        
+        // Get or create cached YOLO model
+        val yolo = getOrCreateModel(modelPath, task)
+        
+        // Set thresholds before inference
+        yolo.setConfidenceThreshold(confidenceThreshold.toDouble())
+        yolo.setIouThreshold(iouThreshold.toDouble())
+        
+        // Run inference with or without annotated image based on parameter
+        val yoloResult = if (generateAnnotatedImage) {
+          yolo.predict(bitmap = bitmap)
+        } else {
+          yolo.predictWithoutAnnotation(bitmap = bitmap)
+        }
+        
+        if (yoloResult == null) {
+          withContext(Dispatchers.Main) {
+            result.error("inference_error", "Failed to run inference", null)
+          }
+          return@launch
+        }
+        
+        // Process results in background
+        val detections = processDetectionResults(yoloResult, task, maxDetections, bitmap)
+        
+        Log.d(TAG, "Processed ${detections.size} detections on background thread")
+        
+        // Return to main thread only for result callback
+        withContext(Dispatchers.Main) {
+          result.success(detections)
+        }
+        
+      } catch (e: Exception) {
+        Log.e(TAG, "Error during static image detection", e)
+        withContext(Dispatchers.Main) {
+          result.error("detection_error", "Error during detection: ${e.message}", null)
+        }
+      }
+    }
+  }
+  
+  // Helper function to process detection results
+  private fun processDetectionResults(
+    yoloResult: YOLOResult,
+    task: YOLOTask,
+    maxDetections: Int,
+    bitmap: Bitmap
+  ): List<Map<String, Any>> {
+    val detections = mutableListOf<Map<String, Any>>()
+    
+    // Limit detections to maxDetections
+    val limitedBoxes = yoloResult.boxes.take(maxDetections)
+    
+    for (box in limitedBoxes) {
+      val detection = mutableMapOf<String, Any>(
+        "classIndex" to box.index,
+        "className" to box.cls,
+        "confidence" to box.conf,
+        "boundingBox" to mapOf(
+          "left" to box.xywh.left,
+          "top" to box.xywh.top,
+          "right" to box.xywh.right,
+          "bottom" to box.xywh.bottom
+        ),
+        "normalizedBox" to mapOf(
+          "left" to (box.xywh.left / bitmap.width),
+          "top" to (box.xywh.top / bitmap.height),
+          "right" to (box.xywh.right / bitmap.width),
+          "bottom" to (box.xywh.bottom / bitmap.height)
+        )
+      )
+      
+      // Add task-specific data
+      when (task) {
+        YOLOTask.SEGMENT -> {
+          // Add mask data if available
+          yoloResult.masks?.masks?.getOrNull(limitedBoxes.indexOf(box))?.let { mask ->
+            // Convert 3D mask (List<List<Float>>) to list of lists for Flutter
+            val maskData = mask.map { row ->
+              row.map { value -> value.toDouble() }
+            }
+            detection["mask"] = maskData
+          }
+        }
+        YOLOTask.POSE -> {
+          // Add keypoints if available
+          val keypointIndex = limitedBoxes.indexOf(box)
+          if (keypointIndex < yoloResult.keypointsList.size) {
+            val keypoints = yoloResult.keypointsList[keypointIndex]
+            val keypointsList = mutableListOf<Double>()
+            val confidencesList = mutableListOf<Double>()
+            
+            for (i in keypoints.xyn.indices) {
+              val (x, y) = keypoints.xyn[i]
+              keypointsList.add(x.toDouble())
+              keypointsList.add(y.toDouble())
+              confidencesList.add(keypoints.conf.getOrElse(i) { 0.0f }.toDouble())
+            }
+            
+            detection["keypoints"] = keypointsList
+            detection["keypointConfidences"] = confidencesList
+          }
+        }
+        else -> {} // Other tasks handled by base detection data
+      }
+      
+      detections.add(detection)
+    }
+    
+    return detections
   }
 }

@@ -2,11 +2,13 @@
 
 // dart:typed_data is already imported via flutter/services.dart
 
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ultralytics_yolo/yolo.dart';
 import 'package:ultralytics_yolo/yolo_platform_interface.dart';
 import 'package:ultralytics_yolo/yolo_method_channel.dart';
 import 'package:ultralytics_yolo/yolo_performance_metrics.dart';
+import 'package:ultralytics_yolo/yolo_result.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -17,8 +19,27 @@ class MockYOLOPlatform with MockPlatformInterfaceMixin implements YOLOPlatform {
   Future<String?> getPlatformVersion() => Future.value('42');
 
   @override
-  Future<void> setModel(int viewId, String modelPath, String task) =>
-      Future.value();
+  Future<void> setModel(int viewId, String modelPath, String task) => Future.value();
+
+  @override
+  Future<List<YOLOResult>> detectInImage(
+    Uint8List imageBytes, {
+    required String modelPath,
+    required String task,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+  }) => Future.value([]);
+
+  @override
+  Future<List<YOLOResult>> detectInImageFile(
+    String imagePath, {
+    required String modelPath,
+    required String task,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+  }) => Future.value([]);
 }
 
 void main() {
@@ -31,50 +52,51 @@ void main() {
   bool modelLoaded = false;
   setUp(() {
     // Configure mock response for the channel
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
-          log.add(methodCall);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (MethodCall methodCall) async {
+        log.add(methodCall);
 
-          if (methodCall.method == 'loadModel') {
-            modelLoaded = true;
-            return true;
-          } else if (methodCall.method == 'createInstance') {
-            // Support for multi-instance creation
-            return true;
-          } else if (methodCall.method == 'disposeInstance') {
-            // Support for multi-instance disposal
-            return true;
-          } else if (methodCall.method == 'predictSingleImage') {
-            if (!modelLoaded) {
-              throw PlatformException(
-                code: 'MODEL_NOT_LOADED',
-                message: 'Model not loaded',
-              );
-            }
-            return {
-              'boxes': [
-                {
-                  'class': 'person',
-                  'confidence': 0.95,
-                  'x': 10,
-                  'y': 10,
-                  'width': 100,
-                  'height': 200,
-                },
-              ],
-              'annotatedImage': Uint8List.fromList(List.filled(100, 0)),
-            };
-          } else if (methodCall.method == 'setModel') {
-            // Support for model switching
-            return true;
+        if (methodCall.method == 'loadModel') {
+          modelLoaded = true;
+          return true;
+        } else if (methodCall.method == 'createInstance') {
+          // Support for multi-instance creation
+          return true;
+        } else if (methodCall.method == 'disposeInstance') {
+          // Support for multi-instance disposal
+          return true;
+        } else if (methodCall.method == 'predictSingleImage') {
+          if (!modelLoaded) {
+            throw PlatformException(code: 'MODEL_NOT_LOADED', message: 'Model not loaded');
           }
-          return null;
-        });
+          return {
+            'boxes': [
+              {
+                'class': 'person',
+                'confidence': 0.95,
+                'x': 10,
+                'y': 10,
+                'width': 100,
+                'height': 200,
+              },
+            ],
+            'annotatedImage': Uint8List.fromList(List.filled(100, 0)),
+          };
+        } else if (methodCall.method == 'setModel') {
+          // Support for model switching
+          return true;
+        }
+        return null;
+      },
+    );
   });
 
   tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      null,
+    );
     log.clear();
     modelLoaded = false;
   });
@@ -89,10 +111,7 @@ void main() {
   group('YOLO Model Loading', () {
     test('loadModel success', () async {
       // Create a YOLO instance for testing
-      final testYolo = YOLO(
-        modelPath: 'test_model.tflite',
-        task: YOLOTask.detect,
-      );
+      final testYolo = YOLO(modelPath: 'test_model.tflite', task: YOLOTask.detect);
 
       // Execute the loadModel method
       final result = await testYolo.loadModel();
@@ -110,10 +129,7 @@ void main() {
     test('YOLO.predict throws if called before loadModel', () async {
       final yolo = YOLO(modelPath: 'test_model.tflite', task: YOLOTask.detect);
       final image = Uint8List.fromList([1, 2, 3]);
-      await expectLater(
-        yolo.predict(image),
-        throwsA(isA<ModelNotLoadedException>()),
-      );
+      await expectLater(yolo.predict(image), throwsA(isA<ModelNotLoadedException>()));
     });
   });
   group('YOLOTask', () {
@@ -138,11 +154,7 @@ void main() {
     final key = GlobalKey<YOLOViewState>();
     await tester.pumpWidget(
       MaterialApp(
-        home: YOLOView(
-          key: key,
-          modelPath: 'test_model.tflite',
-          task: YOLOTask.detect,
-        ),
+        home: YOLOView(key: key, modelPath: 'test_model.tflite', task: YOLOTask.detect),
       ),
     );
     expect(key.currentState, isNotNull);
@@ -152,11 +164,7 @@ void main() {
     final key = GlobalKey<YOLOViewState>();
     await tester.pumpWidget(
       MaterialApp(
-        home: YOLOView(
-          key: key,
-          modelPath: 'test_model.tflite',
-          task: YOLOTask.detect,
-        ),
+        home: YOLOView(key: key, modelPath: 'test_model.tflite', task: YOLOTask.detect),
       ),
     );
     key.currentState?.cancelResultSubscription();
@@ -166,11 +174,7 @@ void main() {
     final key = GlobalKey<YOLOViewState>();
     await tester.pumpWidget(
       MaterialApp(
-        home: YOLOView(
-          key: key,
-          modelPath: 'test_model.tflite',
-          task: YOLOTask.detect,
-        ),
+        home: YOLOView(key: key, modelPath: 'test_model.tflite', task: YOLOTask.detect),
       ),
     );
     await tester.pumpWidget(
@@ -286,10 +290,7 @@ void main() {
     final yolo = YOLO(modelPath: 'test_model.tflite', task: YOLOTask.detect);
     await yolo.loadModel();
 
-    await expectLater(
-      () => yolo.predict(Uint8List(0)),
-      throwsA(isA<InvalidInputException>()),
-    );
+    await expectLater(() => yolo.predict(Uint8List(0)), throwsA(isA<InvalidInputException>()));
   });
 
   test('checkModelExists returns fallback on error', () async {
@@ -327,16 +328,8 @@ void main() {
     });
 
     test('creates multi-instance with unique ID', () {
-      final yolo1 = YOLO(
-        modelPath: 'model1.tflite',
-        task: YOLOTask.detect,
-        useMultiInstance: true,
-      );
-      final yolo2 = YOLO(
-        modelPath: 'model2.tflite',
-        task: YOLOTask.detect,
-        useMultiInstance: true,
-      );
+      final yolo1 = YOLO(modelPath: 'model1.tflite', task: YOLOTask.detect, useMultiInstance: true);
+      final yolo2 = YOLO(modelPath: 'model2.tflite', task: YOLOTask.detect, useMultiInstance: true);
 
       expect(yolo1.instanceId, isNot(equals('default')));
       expect(yolo2.instanceId, isNot(equals('default')));
@@ -354,11 +347,7 @@ void main() {
     });
 
     test('multi-instance constructor registers with manager', () {
-      final yolo = YOLO(
-        modelPath: 'model.tflite',
-        task: YOLOTask.detect,
-        useMultiInstance: true,
-      );
+      final yolo = YOLO(modelPath: 'model.tflite', task: YOLOTask.detect, useMultiInstance: true);
 
       expect(YOLOInstanceManager.hasInstance(yolo.instanceId), isTrue);
       expect(YOLOInstanceManager.getInstance(yolo.instanceId), equals(yolo));
@@ -375,11 +364,7 @@ void main() {
     });
 
     test('multi-instance loadModel calls createInstance', () async {
-      final yolo = YOLO(
-        modelPath: 'model.tflite',
-        task: YOLOTask.detect,
-        useMultiInstance: true,
-      );
+      final yolo = YOLO(modelPath: 'model.tflite', task: YOLOTask.detect, useMultiInstance: true);
 
       try {
         await yolo.loadModel();
@@ -405,11 +390,7 @@ void main() {
     });
 
     test('multi-instance predict includes instanceId', () async {
-      final yolo = YOLO(
-        modelPath: 'model.tflite',
-        task: YOLOTask.detect,
-        useMultiInstance: true,
-      );
+      final yolo = YOLO(modelPath: 'model.tflite', task: YOLOTask.detect, useMultiInstance: true);
 
       expect(yolo.instanceId, isNot(equals('default')));
       expect(YOLOInstanceManager.hasInstance(yolo.instanceId), isTrue);
@@ -440,20 +421,14 @@ void main() {
 
       expect(
         log.any(
-          (call) =>
-              call.method == 'predictSingleImage' &&
-              call.arguments.containsKey('instanceId'),
+          (call) => call.method == 'predictSingleImage' && call.arguments.containsKey('instanceId'),
         ),
         isFalse,
       );
     });
 
     test('multi-instance switchModel includes instanceId', () async {
-      final yolo = YOLO(
-        modelPath: 'model.tflite',
-        task: YOLOTask.detect,
-        useMultiInstance: true,
-      );
+      final yolo = YOLO(modelPath: 'model.tflite', task: YOLOTask.detect, useMultiInstance: true);
       yolo.setViewId(1);
 
       expect(yolo.instanceId, isNot(equals('default')));
@@ -479,21 +454,13 @@ void main() {
       await yolo.switchModel('new_model.tflite', YOLOTask.segment);
 
       expect(
-        log.any(
-          (call) =>
-              call.method == 'setModel' &&
-              call.arguments.containsKey('instanceId'),
-        ),
+        log.any((call) => call.method == 'setModel' && call.arguments.containsKey('instanceId')),
         isFalse,
       );
     });
 
     test('dispose unregisters instance from manager', () async {
-      final yolo = YOLO(
-        modelPath: 'model.tflite',
-        task: YOLOTask.detect,
-        useMultiInstance: true,
-      );
+      final yolo = YOLO(modelPath: 'model.tflite', task: YOLOTask.detect, useMultiInstance: true);
       final instanceId = yolo.instanceId;
 
       expect(YOLOInstanceManager.hasInstance(instanceId), isTrue);
@@ -504,11 +471,7 @@ void main() {
     });
 
     test('dispose calls disposeInstance method', () async {
-      final yolo = YOLO(
-        modelPath: 'model.tflite',
-        task: YOLOTask.detect,
-        useMultiInstance: true,
-      );
+      final yolo = YOLO(modelPath: 'model.tflite', task: YOLOTask.detect, useMultiInstance: true);
       final instanceId = yolo.instanceId;
 
       expect(YOLOInstanceManager.hasInstance(instanceId), isTrue);
@@ -520,11 +483,7 @@ void main() {
     });
 
     test('dispose handles platform errors gracefully', () async {
-      final yolo = YOLO(
-        modelPath: 'model.tflite',
-        task: YOLOTask.detect,
-        useMultiInstance: true,
-      );
+      final yolo = YOLO(modelPath: 'model.tflite', task: YOLOTask.detect, useMultiInstance: true);
       final instanceId = yolo.instanceId;
 
       expect(YOLOInstanceManager.hasInstance(instanceId), isTrue);
@@ -536,41 +495,34 @@ void main() {
       expect(YOLOInstanceManager.hasInstance(instanceId), isFalse);
     });
 
-    test(
-      'multiple instances can be created and disposed independently',
-      () async {
-        final yolo1 = YOLO(
-          modelPath: 'model1.tflite',
-          task: YOLOTask.detect,
-          useMultiInstance: true,
-        );
-        final yolo2 = YOLO(
-          modelPath: 'model2.tflite',
-          task: YOLOTask.segment,
-          useMultiInstance: true,
-        );
-        final yolo3 = YOLO(
-          modelPath: 'model3.tflite',
-          task: YOLOTask.classify,
-          useMultiInstance: true,
-        );
+    test('multiple instances can be created and disposed independently', () async {
+      final yolo1 = YOLO(modelPath: 'model1.tflite', task: YOLOTask.detect, useMultiInstance: true);
+      final yolo2 = YOLO(
+        modelPath: 'model2.tflite',
+        task: YOLOTask.segment,
+        useMultiInstance: true,
+      );
+      final yolo3 = YOLO(
+        modelPath: 'model3.tflite',
+        task: YOLOTask.classify,
+        useMultiInstance: true,
+      );
 
-        expect(YOLOInstanceManager.getActiveInstanceIds().length, equals(3));
+      expect(YOLOInstanceManager.getActiveInstanceIds().length, equals(3));
 
-        // Dispose middle instance
-        await yolo2.dispose();
+      // Dispose middle instance
+      await yolo2.dispose();
 
-        expect(YOLOInstanceManager.getActiveInstanceIds().length, equals(2));
-        expect(YOLOInstanceManager.hasInstance(yolo1.instanceId), isTrue);
-        expect(YOLOInstanceManager.hasInstance(yolo2.instanceId), isFalse);
-        expect(YOLOInstanceManager.hasInstance(yolo3.instanceId), isTrue);
+      expect(YOLOInstanceManager.getActiveInstanceIds().length, equals(2));
+      expect(YOLOInstanceManager.hasInstance(yolo1.instanceId), isTrue);
+      expect(YOLOInstanceManager.hasInstance(yolo2.instanceId), isFalse);
+      expect(YOLOInstanceManager.hasInstance(yolo3.instanceId), isTrue);
 
-        // Dispose remaining instances
-        await yolo1.dispose();
-        await yolo3.dispose();
+      // Dispose remaining instances
+      await yolo1.dispose();
+      await yolo3.dispose();
 
-        expect(YOLOInstanceManager.getActiveInstanceIds(), isEmpty);
-      },
-    );
+      expect(YOLOInstanceManager.getActiveInstanceIds(), isEmpty);
+    });
   });
 }

@@ -1,21 +1,46 @@
 // Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:ultralytics_yolo/yolo_platform_interface.dart';
+import 'package:ultralytics_yolo/yolo_result.dart';
 
 class MockYOLOPlatform with MockPlatformInterfaceMixin implements YOLOPlatform {
   @override
   Future<String?> getPlatformVersion() => Future.value('42');
 
   @override
-  Future<void> setModel(int viewId, String modelPath, String task) =>
-      Future.value();
+  Future<void> setModel(int viewId, String modelPath, String task) => Future.value();
+
+  @override
+  Future<List<YOLOResult>> detectInImage(
+    Uint8List imageBytes, {
+    required String modelPath,
+    required String task,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+  }) => Future.value([]);
+
+  @override
+  Future<List<YOLOResult>> detectInImageFile(
+    String imagePath, {
+    required String modelPath,
+    required String task,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+  }) => Future.value([]);
 }
 
 class _UnimplementedYOLOPlatform extends YOLOPlatform {
   Future<String?> callPlatformVersion() => super.getPlatformVersion();
   Future<void> callSetModel() => super.setModel(1, 'model.tflite', 'detect');
+  Future<List<YOLOResult>> callDetectInImage() =>
+      super.detectInImage(Uint8List(0), modelPath: 'model.tflite', task: 'detect');
+  Future<List<YOLOResult>> callDetectInImageFile() =>
+      super.detectInImageFile('image.jpg', modelPath: 'model.tflite', task: 'detect');
 }
 
 class _FakePlatform implements YOLOPlatform {
@@ -24,6 +49,26 @@ class _FakePlatform implements YOLOPlatform {
 
   @override
   Future<void> setModel(int viewId, String modelPath, String task) async {}
+
+  @override
+  Future<List<YOLOResult>> detectInImage(
+    Uint8List imageBytes, {
+    required String modelPath,
+    required String task,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+  }) async => [];
+
+  @override
+  Future<List<YOLOResult>> detectInImageFile(
+    String imagePath, {
+    required String modelPath,
+    required String task,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+  }) async => [];
 }
 
 void main() {
@@ -37,10 +82,7 @@ void main() {
 
     test('default getPlatformVersion throws UnimplementedError', () {
       final platform = _UnimplementedYOLOPlatform();
-      expect(
-        () => platform.callPlatformVersion(),
-        throwsA(isA<UnimplementedError>()),
-      );
+      expect(() => platform.callPlatformVersion(), throwsA(isA<UnimplementedError>()));
     });
 
     test('default setModel throws UnimplementedError', () {
@@ -48,11 +90,18 @@ void main() {
       expect(() => platform.callSetModel(), throwsA(isA<UnimplementedError>()));
     });
 
+    test('default detectInImage throws UnimplementedError', () {
+      final platform = _UnimplementedYOLOPlatform();
+      expect(() => platform.callDetectInImage(), throwsA(isA<UnimplementedError>()));
+    });
+
+    test('default detectInImageFile throws UnimplementedError', () {
+      final platform = _UnimplementedYOLOPlatform();
+      expect(() => platform.callDetectInImageFile(), throwsA(isA<UnimplementedError>()));
+    });
+
     test('Cannot set instance with invalid token', () {
-      expect(
-        () => YOLOPlatform.instance = _FakePlatform(),
-        throwsA(isA<AssertionError>()),
-      );
+      expect(() => YOLOPlatform.instance = _FakePlatform(), throwsA(isA<AssertionError>()));
     });
   });
 }
