@@ -19,7 +19,7 @@ import UIKit
 import Vision
 
 /// Specialized predictor for YOLO segmentation models that identify objects and their pixel-level masks.
-class Segmenter: BasePredictor, @unchecked Sendable {
+class Segmenter: YOLOPBasePredictor, @unchecked Sendable {
   var colorsForMask: [(red: UInt8, green: UInt8, blue: UInt8)] = []
 
   override func processObservations(for request: VNRequest, error: Error?) {

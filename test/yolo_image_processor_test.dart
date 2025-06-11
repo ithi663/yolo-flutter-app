@@ -33,6 +33,7 @@ class MockYOLOPlatform extends YOLOPlatform {
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,
+    bool generateAnnotatedImage = false,
   }) async {
     if (imageBytes.isEmpty) {
       throw PlatformException(code: 'image_error', message: 'Empty image');
@@ -48,6 +49,7 @@ class MockYOLOPlatform extends YOLOPlatform {
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,
+    bool generateAnnotatedImage = false,
   }) async {
     if (imagePath.isEmpty) {
       throw PlatformException(code: 'image_error', message: 'Empty path');

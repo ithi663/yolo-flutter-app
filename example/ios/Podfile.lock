@@ -34,7 +34,7 @@ SPEC CHECKSUMS:
   image_picker_ios: c560581cceedb403a6ff17f2f816d7fea1421fc1
   integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
-  ultralytics_yolo: c550236eb35c549df15ce6dfca979414d7b70248
+  ultralytics_yolo: 5225b26d2d7328f98c9cb50307c45311b8686216
 
 PODFILE CHECKSUM: aa0167f03b8e053ccf09114d1dcefce0c4f64aba
 

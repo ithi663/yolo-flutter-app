@@ -50,8 +50,7 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
       "location": "unknown",
     ]
 
-    let lowercasedPath = modelPath.lowercased()
-
+    // 1. Check absolute paths first
     if modelPath.hasPrefix("/") {
       if fileManager.fileExists(atPath: modelPath) {
         resultMap["exists"] = true
@@ -61,44 +60,55 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
       }
     }
 
+    // 2. Use BasePredictor's model discovery (plugin bundle compatible)
+    let availableModels = YOLOPBasePredictor.getAvailableDefaultModels()
+    let modelFileName = modelPath.components(separatedBy: "/").last ?? modelPath
+    
+    // Try exact matches first
+    for modelURL in availableModels {
+      let modelName = modelURL.lastPathComponent
+      if modelName == modelPath || modelName == modelFileName {
+        resultMap["exists"] = true
+        resultMap["location"] = "plugin_bundle_model"
+        resultMap["absolutePath"] = modelURL.path
+        return resultMap
+      }
+      
+      // Try without extension
+      let nameWithoutExt = modelURL.deletingPathExtension().lastPathComponent
+      if nameWithoutExt == modelPath || nameWithoutExt == modelFileName {
+        resultMap["exists"] = true
+        resultMap["location"] = "plugin_bundle_model_no_ext"
+        resultMap["absolutePath"] = modelURL.path
+        return resultMap
+      }
+    }
+
+    // 3. Fallback to original main bundle search for compatibility
+    let fileName = modelPath.components(separatedBy: "/").last ?? modelPath
+    
+    // Check flutter assets
     if modelPath.contains("/") {
       let components = modelPath.components(separatedBy: "/")
-      let fileName = components.last ?? ""
       let directory = components.dropLast().joined(separator: "/")
-
       let assetPath = "flutter_assets/\(directory)"
-      if let fullPath = Bundle.main.path(forResource: fileName, ofType: nil, inDirectory: assetPath)
-      {
+      
+      if let fullPath = Bundle.main.path(forResource: fileName, ofType: nil, inDirectory: assetPath) {
         resultMap["exists"] = true
         resultMap["location"] = "flutter_assets_directory"
         resultMap["absolutePath"] = fullPath
         return resultMap
       }
-
-      let fileComponents = fileName.components(separatedBy: ".")
-      if fileComponents.count > 1 {
-        let name = fileComponents.dropLast().joined(separator: ".")
-        let ext = fileComponents.last ?? ""
-
-        if let fullPath = Bundle.main.path(forResource: name, ofType: ext, inDirectory: assetPath) {
-          resultMap["exists"] = true
-          resultMap["location"] = "flutter_assets_directory_with_ext"
-          resultMap["absolutePath"] = fullPath
-          return resultMap
-        }
-      }
     }
 
-    let fileName = modelPath.components(separatedBy: "/").last ?? modelPath
-    if let fullPath = Bundle.main.path(
-      forResource: fileName, ofType: nil, inDirectory: "flutter_assets")
-    {
+    if let fullPath = Bundle.main.path(forResource: fileName, ofType: nil, inDirectory: "flutter_assets") {
       resultMap["exists"] = true
       resultMap["location"] = "flutter_assets_root"
       resultMap["absolutePath"] = fullPath
       return resultMap
     }
 
+    // Check main bundle resources
     let fileComponents = fileName.components(separatedBy: ".")
     if fileComponents.count > 1 {
       let name = fileComponents.dropLast().joined(separator: ".")
@@ -106,24 +116,30 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
 
       if let fullPath = Bundle.main.path(forResource: name, ofType: ext) {
         resultMap["exists"] = true
-        resultMap["location"] = "bundle_resource"
+        resultMap["location"] = "main_bundle_resource"
         resultMap["absolutePath"] = fullPath
         return resultMap
       }
     }
 
+    // Check specific extensions
     if let compiledURL = Bundle.main.url(forResource: fileName, withExtension: "mlmodelc") {
       resultMap["exists"] = true
-      resultMap["location"] = "bundle_compiled"
+      resultMap["location"] = "main_bundle_compiled"
       resultMap["absolutePath"] = compiledURL.path
       return resultMap
     }
 
     if let packageURL = Bundle.main.url(forResource: fileName, withExtension: "mlpackage") {
       resultMap["exists"] = true
-      resultMap["location"] = "bundle_package"
+      resultMap["location"] = "main_bundle_package"
       resultMap["absolutePath"] = packageURL.path
       return resultMap
+    }
+
+    print("🔍 Model '\(modelPath)' not found in any location. Available models:")
+    for (index, url) in availableModels.enumerated() {
+      print("  \(index + 1). \(url.lastPathComponent) at \(url.path)")
     }
 
     return resultMap
@@ -254,12 +270,14 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
         let instanceId = args["instanceId"] as? String ?? "default"
         let confidenceThreshold = args["confidenceThreshold"] as? Double
         let iouThreshold = args["iouThreshold"] as? Double
+        let generateAnnotatedImage = args["generateAnnotatedImage"] as? Bool ?? false
 
         if let resultDict = YOLOInstanceManager.shared.predict(
           instanceId: instanceId,
           imageData: data.data,
           confidenceThreshold: confidenceThreshold,
-          iouThreshold: iouThreshold
+          iouThreshold: iouThreshold,
+          generateAnnotatedImage: generateAnnotatedImage
         ) {
           result(resultDict)
         } else {
@@ -307,6 +325,15 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
       case "getStoragePaths":
         let paths = getStoragePaths()
         result(paths)
+        
+      case "printModelInfo":
+        YOLOPBasePredictor.printModelInfo()
+        result(nil)
+        
+      case "getAvailableModels":
+        let models = YOLOPBasePredictor.getAvailableDefaultModels()
+        let modelPaths = models.map { $0.path }
+        result(modelPaths)
 
       case "setModel":
         guard let args = call.arguments as? [String: Any],

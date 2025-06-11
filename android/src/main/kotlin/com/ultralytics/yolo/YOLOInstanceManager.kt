@@ -87,7 +87,8 @@ class YOLOInstanceManager {
         instanceId: String,
         bitmap: Bitmap,
         confidenceThreshold: Float? = null,
-        iouThreshold: Float? = null
+        iouThreshold: Float? = null,
+        generateAnnotatedImage: Boolean = false
     ): YOLOResult? {
         val yolo = instances[instanceId] ?: return null
         
@@ -99,8 +100,12 @@ class YOLOInstanceManager {
         confidenceThreshold?.let { yolo.setConfidenceThreshold(it) }
         iouThreshold?.let { yolo.setIouThreshold(it) }
         
-        // Run prediction
-        val result = yolo.predict(bitmap)
+        // Run prediction with or without annotation based on parameter
+        val result = if (generateAnnotatedImage) {
+            yolo.predict(bitmap)
+        } else {
+            yolo.predictWithoutAnnotation(bitmap)
+        }
         
         // Restore original thresholds
         yolo.setConfidenceThreshold(originalConfThreshold)

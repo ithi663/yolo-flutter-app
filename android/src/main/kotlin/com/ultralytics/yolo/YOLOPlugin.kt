@@ -206,6 +206,7 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, PluginRegist
           val imageData = args?.get("image") as? ByteArray
           val confidenceThreshold = args?.get("confidenceThreshold") as? Double
           val iouThreshold = args?.get("iouThreshold") as? Double
+          val generateAnnotatedImage = args?.get("generateAnnotatedImage") as? Boolean ?: false
           val instanceId = args?.get("instanceId") as? String ?: "default"
 
           if (imageData == null) {
@@ -225,7 +226,8 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, PluginRegist
             instanceId = instanceId,
             bitmap = bitmap,
             confidenceThreshold = confidenceThreshold?.toFloat(),
-            iouThreshold = iouThreshold?.toFloat()
+            iouThreshold = iouThreshold?.toFloat(),
+            generateAnnotatedImage = generateAnnotatedImage
           )
           
           if (yoloResult == null) {

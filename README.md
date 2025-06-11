@@ -165,6 +165,7 @@ YOLOView(
 Ideal for batch processing, photo analysis, or user-uploaded content:
 
 ```dart
+// Method 1: YOLOImageProcessor (Recommended for static images)
 final processor = YOLOImageProcessor();
 
 // ⚡ Optimized processing (recommended for production)
@@ -178,20 +179,22 @@ final results = await processor.detectInImage(
   generateAnnotatedImage: false, // 🚀 Faster processing
 );
 
-// 🎨 With annotated image (slower but includes visual output)
-final resultsWithImage = await processor.detectInImage(
+// Method 2: YOLO instance (Now also optimized!)
+final yolo = YOLO();
+await yolo.loadModel(modelPath: 'yolo11n', task: YOLOTask.detect);
+
+// ⚡ Fast processing without annotated image
+final result = await yolo.predict(
   imageBytes,
-  modelPath: 'yolo11n',
-  task: YOLOTask.detect,
-  generateAnnotatedImage: true, // Generates annotated image
+  confidenceThreshold: 0.5,
+  iouThreshold: 0.4,
+  generateAnnotatedImage: false, // 🚀 Performance optimized
 );
 
-// Or process directly from file path
-final fileResults = await processor.detectInImageFile(
-  '/path/to/image.jpg',
-  modelPath: 'yolo11n',
-  task: YOLOTask.segment,
-  generateAnnotatedImage: false, // Optimized for speed
+// 🎨 With annotated image (slower but includes visual output)
+final resultWithImage = await yolo.predict(
+  imageBytes,
+  generateAnnotatedImage: true, // Generates annotated image
 );
 ```
 
@@ -200,6 +203,7 @@ final fileResults = await processor.detectInImageFile(
 - **Model Caching**: Models are cached and reused automatically
 - **Optimized Mode**: Disable `generateAnnotatedImage` for 2-3x faster processing
 - **Memory Efficient**: Reduced memory usage for large batch processing
+- **Both APIs Optimized**: Works with both `YOLOImageProcessor` and `YOLO` classes
 
 ### 🔄 Image Sources for Static Processing
 

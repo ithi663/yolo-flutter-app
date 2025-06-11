@@ -240,6 +240,7 @@ class YOLO {
   /// @param imageBytes The raw image data as a Uint8List
   /// @param confidenceThreshold Optional confidence threshold (0.0-1.0). Defaults to 0.25 if not specified.
   /// @param iouThreshold Optional IoU threshold for NMS (0.0-1.0). Defaults to 0.4 if not specified.
+  /// @param generateAnnotatedImage Whether to generate annotated image (false by default for better performance)
   /// @return A map containing the inference results
   /// @throws [ModelNotLoadedException] if the model has not been loaded
   /// @throws [InferenceException] if there's an error during inference
@@ -248,14 +249,14 @@ class YOLO {
     Uint8List imageBytes, {
     double? confidenceThreshold,
     double? iouThreshold,
+    bool generateAnnotatedImage = false,
   }) async {
     if (imageBytes.isEmpty) {
       throw InvalidInputException('Image data is empty');
     }
 
     // Validate threshold values if provided
-    if (confidenceThreshold != null &&
-        (confidenceThreshold < 0.0 || confidenceThreshold > 1.0)) {
+    if (confidenceThreshold != null && (confidenceThreshold < 0.0 || confidenceThreshold > 1.0)) {
       throw InvalidInputException(
         'Confidence threshold must be between 0.0 and 1.0',
       );
@@ -275,6 +276,9 @@ class YOLO {
         arguments['iouThreshold'] = iouThreshold;
       }
 
+      // Add generateAnnotatedImage parameter
+      arguments['generateAnnotatedImage'] = generateAnnotatedImage;
+
       // Only include instanceId for multi-instance mode
       if (_instanceId != 'default') {
         arguments['instanceId'] = _instanceId;
@@ -293,18 +297,16 @@ class YOLO {
 
         // Convert boxes list if it exists
         if (resultMap.containsKey('boxes') && resultMap['boxes'] is List) {
-          final List<Map<String, dynamic>> boxes = (resultMap['boxes'] as List)
-              .map((item) {
-                if (item is Map) {
-                  return Map<String, dynamic>.fromEntries(
-                    item.entries.map(
-                      (e) => MapEntry(e.key.toString(), e.value),
-                    ),
-                  );
-                }
-                return <String, dynamic>{};
-              })
-              .toList();
+          final List<Map<String, dynamic>> boxes = (resultMap['boxes'] as List).map((item) {
+            if (item is Map) {
+              return Map<String, dynamic>.fromEntries(
+                item.entries.map(
+                  (e) => MapEntry(e.key.toString(), e.value),
+                ),
+              );
+            }
+            return <String, dynamic>{};
+          }).toList();
 
           resultMap['boxes'] = boxes;
         }

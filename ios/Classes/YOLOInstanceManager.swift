@@ -98,7 +98,8 @@ class YOLOInstanceManager {
     instanceId: String,
     imageData: Data,
     confidenceThreshold: Double? = nil,
-    iouThreshold: Double? = nil
+    iouThreshold: Double? = nil,
+    generateAnnotatedImage: Bool = false
   ) -> [String: Any]? {
     guard let yolo = instances[instanceId] else {
       return nil
@@ -128,7 +129,7 @@ class YOLOInstanceManager {
     yolo.confidenceThreshold = originalConfThreshold
     yolo.iouThreshold = originalIouThreshold
 
-    return convertToFlutterFormat(result: result)
+    return convertToFlutterFormat(result: result, includeAnnotatedImage: generateAnnotatedImage)
   }
 
   /// Removes an instance
@@ -156,8 +157,27 @@ class YOLOInstanceManager {
       return modelPath
     }
 
-    let fileManager = FileManager.default
+    // 1. Try plugin bundled models first (using BasePredictor's discovery)
+    let availableModels = YOLOPBasePredictor.getAvailableDefaultModels()
+    let modelFileName = modelPath.components(separatedBy: "/").last ?? modelPath
+    
+    // Try exact matches first
+    for modelURL in availableModels {
+      let modelName = modelURL.lastPathComponent
+      if modelName == modelPath || modelName == modelFileName {
+        print("Found plugin bundle model: \(modelName) at \(modelURL.path)")
+        return modelURL.path
+      }
+      
+      // Try without extension
+      let nameWithoutExt = modelURL.deletingPathExtension().lastPathComponent
+      if nameWithoutExt == modelPath || nameWithoutExt == modelFileName {
+        print("Found plugin bundle model (no ext): \(nameWithoutExt) at \(modelURL.path)")
+        return modelURL.path
+      }
+    }
 
+    // 2. Fallback to original main bundle search for compatibility
     if modelPath.contains("/") {
       let components = modelPath.components(separatedBy: "/")
       let fileName = components.last ?? ""
@@ -253,11 +273,16 @@ class YOLOInstanceManager {
       }
     }
 
+    print("Could not resolve model path for: \(modelPath). Available models:")
+    for (index, url) in availableModels.enumerated() {
+      print("  \(index + 1). \(url.lastPathComponent) at \(url.path)")
+    }
+
     // Return original path if not found
     return modelPath
   }
 
-  private func convertToFlutterFormat(result: YOLOResult) -> [String: Any] {
+  private func convertToFlutterFormat(result: YOLOResult, includeAnnotatedImage: Bool = false) -> [String: Any] {
     var flutterResults: [[String: Any]] = []
 
     for box in result.boxes {
@@ -286,19 +311,21 @@ class YOLOInstanceManager {
       "boxes": flutterResults
     ]
 
-    // Debug logging for annotated image
-    print("YOLOInstanceManager: result.annotatedImage exists: \(result.annotatedImage != nil)")
-
-    if let annotatedImage = result.annotatedImage {
-      print("YOLOInstanceManager: Converting annotated image to PNG data")
-      if let imageData = annotatedImage.pngData() {
-        print("YOLOInstanceManager: PNG data size: \(imageData.count) bytes")
-        resultDict["annotatedImage"] = FlutterStandardTypedData(bytes: imageData)
+    // Only include annotated image if requested (for performance)
+    if includeAnnotatedImage {
+      print("YOLOInstanceManager: result.annotatedImage exists: \(result.annotatedImage != nil)")
+      
+      if let annotatedImage = result.annotatedImage {
+        print("YOLOInstanceManager: Converting annotated image to PNG data")
+        if let imageData = annotatedImage.pngData() {
+          print("YOLOInstanceManager: PNG data size: \(imageData.count) bytes")
+          resultDict["annotatedImage"] = FlutterStandardTypedData(bytes: imageData)
+        } else {
+          print("YOLOInstanceManager: Failed to convert image to PNG data")
+        }
       } else {
-        print("YOLOInstanceManager: Failed to convert image to PNG data")
+        print("YOLOInstanceManager: No annotated image in result")
       }
-    } else {
-      print("YOLOInstanceManager: No annotated image in result")
     }
 
     print("YOLOInstanceManager: Result dictionary keys: \(resultDict.keys)")

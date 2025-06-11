@@ -29,7 +29,9 @@ class MockYOLOPlatform with MockPlatformInterfaceMixin implements YOLOPlatform {
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,
-  }) => Future.value([]);
+    bool generateAnnotatedImage = false,
+  }) =>
+      Future.value([]);
 
   @override
   Future<List<YOLOResult>> detectInImageFile(
@@ -39,7 +41,9 @@ class MockYOLOPlatform with MockPlatformInterfaceMixin implements YOLOPlatform {
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,
-  }) => Future.value([]);
+    bool generateAnnotatedImage = false,
+  }) =>
+      Future.value([]);
 }
 
 void main() {

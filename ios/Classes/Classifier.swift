@@ -18,7 +18,7 @@ import UIKit
 import Vision
 
 /// Specialized predictor for YOLO classification models that identify the subject of an image.
-class Classifier: BasePredictor {
+class Classifier: YOLOPBasePredictor {
 
   override func setConfidenceThreshold(confidence: Double) {
     confidenceThreshold = confidence

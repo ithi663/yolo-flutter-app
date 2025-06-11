@@ -19,7 +19,7 @@ import UIKit
 import Vision
 
 /// Specialized predictor for YOLO models that detect objects using oriented (rotated) bounding boxes.
-class ObbDetector: BasePredictor, @unchecked Sendable {
+class ObbDetector: YOLOPBasePredictor, @unchecked Sendable {
 
   override func processObservations(for request: VNRequest, error: Error?) {
     if let results = request.results as? [VNCoreMLFeatureValueObservation] {

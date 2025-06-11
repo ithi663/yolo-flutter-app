@@ -289,7 +289,7 @@ public class YOLOView: UIView, VideoCaptureDelegate {
 
     switch task {
     case .classify:
-      Classifier.create(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
+      Classifier.createModel(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
         [weak self] result in
         switch result {
         case .success(let predictor):
@@ -300,7 +300,7 @@ public class YOLOView: UIView, VideoCaptureDelegate {
       }
 
     case .segment:
-      Segmenter.create(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
+      Segmenter.createModel(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
         [weak self] result in
         switch result {
         case .success(let predictor):
@@ -311,7 +311,7 @@ public class YOLOView: UIView, VideoCaptureDelegate {
       }
 
     case .pose:
-      PoseEstimater.create(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
+      PoseEstimater.createModel(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
         [weak self] result in
         switch result {
         case .success(let predictor):
@@ -322,7 +322,7 @@ public class YOLOView: UIView, VideoCaptureDelegate {
       }
 
     case .obb:
-      ObbDetector.create(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
+      ObbDetector.createModel(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
         [weak self] result in
         switch result {
         case .success(let predictor):
@@ -335,7 +335,7 @@ public class YOLOView: UIView, VideoCaptureDelegate {
       }
 
     default:
-      ObjectDetector.create(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
+      ObjectDetector.createModel(unwrappedModelURL: unwrappedModelURL, isRealTime: true) {
         [weak self] result in
         switch result {
         case .success(let predictor):

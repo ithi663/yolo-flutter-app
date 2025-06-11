@@ -24,7 +24,7 @@ public class YOLO {
   public var confidenceThreshold: Double = 0.25 {
     didSet {
       // Apply to predictor if it has been loaded
-      if let basePredictor = predictor as? BasePredictor {
+      if let basePredictor = predictor as? YOLOPBasePredictor {
         basePredictor.setConfidenceThreshold(confidence: confidenceThreshold)
       }
     }
@@ -34,7 +34,7 @@ public class YOLO {
   public var iouThreshold: Double = 0.4 {
     didSet {
       // Apply to predictor if it has been loaded
-      if let basePredictor = predictor as? BasePredictor {
+      if let basePredictor = predictor as? YOLOPBasePredictor {
         basePredictor.setIouThreshold(iou: iouThreshold)
       }
     }
@@ -258,7 +258,7 @@ public class YOLO {
 
     switch task {
     case .classify:
-      Classifier.create(unwrappedModelURL: unwrappedModelURL) { result in
+      Classifier.createModel(unwrappedModelURL: unwrappedModelURL) { result in
         switch result {
         case .success(let predictor):
           handleSuccess(predictor: predictor)
@@ -268,7 +268,7 @@ public class YOLO {
       }
 
     case .segment:
-      Segmenter.create(unwrappedModelURL: unwrappedModelURL) { result in
+      Segmenter.createModel(unwrappedModelURL: unwrappedModelURL) { result in
         switch result {
         case .success(let predictor):
           handleSuccess(predictor: predictor)
@@ -278,7 +278,7 @@ public class YOLO {
       }
 
     case .pose:
-      PoseEstimater.create(unwrappedModelURL: unwrappedModelURL) { result in
+      PoseEstimater.createModel(unwrappedModelURL: unwrappedModelURL) { result in
         switch result {
         case .success(let predictor):
           handleSuccess(predictor: predictor)
@@ -288,7 +288,7 @@ public class YOLO {
       }
 
     case .obb:
-      ObbDetector.create(unwrappedModelURL: unwrappedModelURL) { result in
+      ObbDetector.createModel(unwrappedModelURL: unwrappedModelURL) { result in
         switch result {
         case .success(let predictor):
           handleSuccess(predictor: predictor)
@@ -298,7 +298,7 @@ public class YOLO {
       }
 
     default:
-      ObjectDetector.create(unwrappedModelURL: unwrappedModelURL) { result in
+      ObjectDetector.createModel(unwrappedModelURL: unwrappedModelURL) { result in
         switch result {
         case .success(let predictor):
           handleSuccess(predictor: predictor)
