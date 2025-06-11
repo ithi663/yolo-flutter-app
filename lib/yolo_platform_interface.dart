@@ -81,6 +81,7 @@ abstract class YOLOPlatform extends PlatformInterface {
   /// - [imageBytes]: The raw image data as a Uint8List
   /// - [modelPath]: The path to the YOLO model file
   /// - [task]: The YOLO task type (detect, segment, classify, pose, obb)
+  /// - [useBundledModel]: Whether to prefer bundled models (iOS: .mlpackage, Android: .tflite)
   /// - [confidenceThreshold]: Minimum confidence score for detections (0.0-1.0)
   /// - [iouThreshold]: IoU threshold for Non-Maximum Suppression (0.0-1.0)
   /// - [maxDetections]: Maximum number of detections to return
@@ -95,6 +96,7 @@ abstract class YOLOPlatform extends PlatformInterface {
     Uint8List imageBytes, {
     required String modelPath,
     required String task,
+    bool useBundledModel = false,
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,
@@ -112,6 +114,7 @@ abstract class YOLOPlatform extends PlatformInterface {
   /// - [imagePath]: The path to the image file
   /// - [modelPath]: The path to the YOLO model file
   /// - [task]: The YOLO task type (detect, segment, classify, pose, obb)
+  /// - [useBundledModel]: Whether to prefer bundled models (iOS: .mlpackage, Android: .tflite)
   /// - [confidenceThreshold]: Minimum confidence score for detections (0.0-1.0)
   /// - [iouThreshold]: IoU threshold for Non-Maximum Suppression (0.0-1.0)
   /// - [maxDetections]: Maximum number of detections to return
@@ -126,6 +129,7 @@ abstract class YOLOPlatform extends PlatformInterface {
     String imagePath, {
     required String modelPath,
     required String task,
+    bool useBundledModel = false,
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,

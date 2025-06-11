@@ -31,6 +31,20 @@ import 'yolo_task.dart';
 ///   print('Bounding box: ${result.boundingBox}');
 /// }
 /// ```
+///
+/// Example usage with bundled models:
+/// ```dart
+/// final processor = YOLOImageProcessor();
+///
+/// // Use bundled model (iOS: .mlpackage, Android: .tflite)
+/// final results = await processor.detectInImageFile(
+///   'path/to/image.jpg',
+///   modelPath: 'yolo11n', // Just the model name
+///   task: YOLOTask.detect,
+///   useBundledModel: true, // Use bundled model if available
+///   confidenceThreshold: 0.4,
+/// );
+/// ```
 class YOLOImageProcessor {
   /// Get the platform instance dynamically to support testing
   YOLOPlatform get _platform => YOLOPlatform.instance;
@@ -42,8 +56,9 @@ class YOLOImageProcessor {
   ///
   /// Parameters:
   /// - [imageBytes]: The raw image data as a Uint8List
-  /// - [modelPath]: The path to the YOLO model file
+  /// - [modelPath]: The path to the YOLO model file or model name for bundled models
   /// - [task]: The YOLO task type to perform
+  /// - [useBundledModel]: Whether to prefer bundled models (iOS: .mlpackage, Android: .tflite)
   /// - [confidenceThreshold]: Minimum confidence score for detections (0.0-1.0)
   /// - [iouThreshold]: IoU threshold for Non-Maximum Suppression (0.0-1.0)
   /// - [maxDetections]: Maximum number of detections to return
@@ -64,6 +79,17 @@ class YOLOImageProcessor {
   /// );
   /// ```
   ///
+  /// Example with bundled model:
+  /// ```dart
+  /// final results = await processor.detectInImage(
+  ///   imageBytes,
+  ///   modelPath: 'yolo11n', // Just the model name
+  ///   task: YOLOTask.detect,
+  ///   useBundledModel: true, // Use bundled model
+  ///   confidenceThreshold: 0.4,
+  /// );
+  /// ```
+  ///
   /// Throws:
   /// - [ArgumentError] if imageBytes is empty or parameters are invalid
   /// - Platform-specific exceptions if inference fails
@@ -71,6 +97,7 @@ class YOLOImageProcessor {
     Uint8List imageBytes, {
     required String modelPath,
     required YOLOTask task,
+    bool useBundledModel = false,
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,
@@ -90,6 +117,7 @@ class YOLOImageProcessor {
       imageBytes,
       modelPath: modelPath,
       task: task.name,
+      useBundledModel: useBundledModel,
       confidenceThreshold: confidenceThreshold,
       iouThreshold: iouThreshold,
       maxDetections: maxDetections,
@@ -104,8 +132,9 @@ class YOLOImageProcessor {
   ///
   /// Parameters:
   /// - [imagePath]: The path to the image file
-  /// - [modelPath]: The path to the YOLO model file
+  /// - [modelPath]: The path to the YOLO model file or model name for bundled models
   /// - [task]: The YOLO task type to perform
+  /// - [useBundledModel]: Whether to prefer bundled models (iOS: .mlpackage, Android: .tflite)
   /// - [confidenceThreshold]: Minimum confidence score for detections (0.0-1.0)
   /// - [iouThreshold]: IoU threshold for Non-Maximum Suppression (0.0-1.0)
   /// - [maxDetections]: Maximum number of detections to return
@@ -123,6 +152,17 @@ class YOLOImageProcessor {
   /// );
   /// ```
   ///
+  /// Example with bundled model:
+  /// ```dart
+  /// final results = await processor.detectInImageFile(
+  ///   'path/to/image.jpg',
+  ///   modelPath: 'yolo11n', // Just the model name
+  ///   task: YOLOTask.detect,
+  ///   useBundledModel: true, // Use bundled model
+  ///   confidenceThreshold: 0.4,
+  /// );
+  /// ```
+  ///
   /// Throws:
   /// - [ArgumentError] if imagePath is empty or parameters are invalid
   /// - Platform-specific exceptions if inference fails
@@ -130,6 +170,7 @@ class YOLOImageProcessor {
     String imagePath, {
     required String modelPath,
     required YOLOTask task,
+    bool useBundledModel = false,
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,
@@ -149,6 +190,7 @@ class YOLOImageProcessor {
       imagePath,
       modelPath: modelPath,
       task: task.name,
+      useBundledModel: useBundledModel,
       confidenceThreshold: confidenceThreshold,
       iouThreshold: iouThreshold,
       maxDetections: maxDetections,

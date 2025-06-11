@@ -7,3 +7,4 @@ export 'yolo_result.dart';
 export 'yolo_task.dart';
 export 'yolo_view.dart';
 export 'yolo_streaming_config.dart';
+export 'yolo_bundled_models.dart';

@@ -44,6 +44,7 @@ class YOLOMethodChannel extends YOLOPlatform {
     Uint8List imageBytes, {
     required String modelPath,
     required String task,
+    bool useBundledModel = false,
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,
@@ -53,6 +54,7 @@ class YOLOMethodChannel extends YOLOPlatform {
       'imageBytes': imageBytes,
       'modelPath': modelPath,
       'task': task,
+      'useBundledModel': useBundledModel,
       'confidenceThreshold': confidenceThreshold,
       'iouThreshold': iouThreshold,
       'maxDetections': maxDetections,
@@ -66,6 +68,7 @@ class YOLOMethodChannel extends YOLOPlatform {
     String imagePath, {
     required String modelPath,
     required String task,
+    bool useBundledModel = false,
     double confidenceThreshold = 0.25,
     double iouThreshold = 0.45,
     int maxDetections = 100,
@@ -75,6 +78,7 @@ class YOLOMethodChannel extends YOLOPlatform {
       'imagePath': imagePath,
       'modelPath': modelPath,
       'task': task,
+      'useBundledModel': useBundledModel,
       'confidenceThreshold': confidenceThreshold,
       'iouThreshold': iouThreshold,
       'maxDetections': maxDetections,

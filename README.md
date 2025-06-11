@@ -117,23 +117,33 @@ The plugin supports **automatic model downloading** and manual bundling. Models 
 - `yolo11n-cls` - Image Classification (5.0MB)
 - `yolo11n-obb` - Oriented Bounding Boxes (6.4MB)
 
-**🔄 Three Ways to Get Models:**
+**🔄 Four Ways to Get Models:**
 
-1. **Automatic Download** (Recommended) - Just use the model name:
+1. **Bundled Models** (Fastest) - Pre-packaged with the plugin:
+   ```dart
+   // Use bundled models for instant availability and offline capability
+   final yolo = YOLO(
+     modelPath: 'yolo11n', // Just the model name
+     task: YOLOTask.detect,
+     useBundledModel: true, // Enable bundled model usage
+   );
+   ```
+
+2. **Automatic Download** (Recommended) - Just use the model name:
    ```dart
    YOLOView(modelPath: 'yolo11n', task: YOLOTask.detect)
    ```
 
-2. **Manual Bundle** - For offline apps or faster startup:
+3. **Manual Bundle** - For offline apps or faster startup:
    - **iOS**: Drag `.mlpackage`/`.mlmodel` into `ios/Runner.xcworkspace`
    - **Android**: Place `.tflite` files in `android/app/src/main/assets/`
 
-3. **Download from Sources**:
+4. **Download from Sources**:
    - [Release Assets](https://github.com/ultralytics/yolo-flutter-app/releases/tag/v0.0.0)
    - [Ultralytics HUB](https://www.ultralytics.com/hub)
    - Export from [ultralytics](https://github.com/ultralytics/ultralytics) ([CoreML](https://docs.ultralytics.com/ja/integrations/coreml/)/[TFLite](https://docs.ultralytics.com/integrations/tflite/))
 
-**[📖 Complete Model Loading Guide →](LOAD_MODULE_GUIDE.md)** | **[📥 Download Models →](doc/install.md#models)**
+**[📖 Complete Model Loading Guide →](LOAD_MODULE_GUIDE.md)** | **[📦 Bundled Models Guide →](doc/BUNDLED_MODELS.md)** | **[📥 Download Models →](doc/install.md#models)**
 
 ### 4. Platform-Specific Setup
 

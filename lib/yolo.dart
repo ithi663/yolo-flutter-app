@@ -32,6 +32,18 @@ export 'yolo_instance_manager.dart';
 /// await yolo.loadModel();
 /// final results = await yolo.predict(imageBytes);
 /// ```
+///
+/// Example usage with bundled models:
+/// ```dart
+/// final yolo = YOLO(
+///   modelPath: 'yolo11n', // Just the model name
+///   task: YOLOTask.detect,
+///   useBundledModel: true, // Use bundled model if available
+/// );
+///
+/// await yolo.loadModel();
+/// final results = await yolo.predict(imageBytes);
+/// ```
 class YOLO {
   // Static channel for backward compatibility
   static const _defaultChannel = MethodChannel('yolo_single_image_channel');
@@ -48,6 +60,7 @@ class YOLO {
   /// - An asset path (e.g., 'assets/models/yolo11n.tflite')
   /// - An absolute file path (e.g., '/data/user/0/com.example.app/files/models/yolo11n.tflite')
   /// - An internal storage reference (e.g., 'internal://models/yolo11n.tflite')
+  /// - A model name for bundled models (e.g., 'yolo11n' when useBundledModel is true)
   ///
   /// The 'internal://' prefix will be resolved to the app's internal storage directory.
   final String modelPath;
@@ -55,19 +68,36 @@ class YOLO {
   /// The type of task this YOLO model will perform (detection, segmentation, etc.)
   final YOLOTask task;
 
+  /// Whether to prefer bundled models over downloaded/asset models.
+  ///
+  /// When true, the plugin will first try to use models bundled in:
+  /// - iOS: `/ios/Assets/models/` (as .mlpackage directories)
+  /// - Android: `/android/src/main/assets/models/` (as .tflite files)
+  ///
+  /// If the bundled model is not found, it will fall back to the normal model loading logic.
+  /// This is useful for apps that want to ship with pre-bundled models for better performance
+  /// and offline capability.
+  final bool useBundledModel;
+
   /// The view ID of the associated YoloView (used for model switching)
   int? _viewId;
 
   /// Creates a new YOLO instance with the specified model path and task.
   ///
-  /// The [modelPath] can refer to a model in assets, internal storage, or absolute path.
+  /// The [modelPath] can refer to a model in assets, internal storage, absolute path,
+  /// or just a model name when [useBundledModel] is true.
   /// The [task] specifies what type of inference will be performed.
+  ///
+  /// Set [useBundledModel] to true to prefer models bundled in the plugin's native assets:
+  /// - iOS: Models in `/ios/Assets/models/` as .mlpackage directories
+  /// - Android: Models in `/android/src/main/assets/models/` as .tflite files
   ///
   /// If [useMultiInstance] is true, each YOLO instance gets a unique ID and its own channel.
   /// If false, uses the default channel for backward compatibility.
   YOLO({
     required this.modelPath,
     required this.task,
+    this.useBundledModel = false,
     bool useMultiInstance = false,
   }) {
     if (useMultiInstance) {
@@ -115,9 +145,10 @@ class YOLO {
   ///
   /// @param newModelPath The path to the new model
   /// @param newTask The task type for the new model
+  /// @param useBundledModel Whether to prefer bundled models for the new model
   /// @throws [StateError] if the view is not initialized
   /// @throws [ModelLoadingException] if the model switch fails
-  Future<void> switchModel(String newModelPath, YOLOTask newTask) async {
+  Future<void> switchModel(String newModelPath, YOLOTask newTask, {bool? useBundledModel}) async {
     if (_viewId == null) {
       throw StateError('Cannot switch model: view not initialized');
     }
@@ -127,6 +158,7 @@ class YOLO {
         'viewId': _viewId,
         'modelPath': newModelPath,
         'task': newTask.name,
+        'useBundledModel': useBundledModel ?? this.useBundledModel,
       };
 
       // Only include instanceId for multi-instance mode
@@ -157,6 +189,13 @@ class YOLO {
   /// This method must be called before [predict] to initialize the model.
   /// Returns `true` if the model was loaded successfully, `false` otherwise.
   ///
+  /// When [useBundledModel] is true, the plugin will first attempt to load
+  /// the model from bundled assets:
+  /// - iOS: `/ios/Assets/models/{modelPath}.mlpackage`
+  /// - Android: `/android/src/main/assets/models/{modelPath}.tflite`
+  ///
+  /// If the bundled model is not found, it falls back to the normal model loading logic.
+  ///
   /// Example:
   /// ```dart
   /// bool success = await yolo.loadModel();
@@ -178,6 +217,7 @@ class YOLO {
       final Map<String, dynamic> arguments = {
         'modelPath': modelPath,
         'task': task.name,
+        'useBundledModel': useBundledModel,
       };
 
       // Only include instanceId for multi-instance mode
