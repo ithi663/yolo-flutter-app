@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'yolo_platform_interface.dart';
+import 'yolo_result.dart';
 
 /// An implementation of [YOLOPlatform] that uses method channels.
 ///
@@ -37,5 +38,69 @@ class YOLOMethodChannel extends YOLOPlatform {
       'modelPath': modelPath,
       'task': task,
     });
+  }
+
+  @override
+  Future<List<YOLOResult>> detectInImage(
+    Uint8List imageBytes, {
+    required String modelPath,
+    required String task,
+    bool useBundledModel = false,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+    bool generateAnnotatedImage = false,
+  }) async {
+    final results = await methodChannel.invokeListMethod<dynamic>('detectInImage', {
+      'imageBytes': imageBytes,
+      'modelPath': modelPath,
+      'task': task,
+      'useBundledModel': useBundledModel,
+      'confidenceThreshold': confidenceThreshold,
+      'iouThreshold': iouThreshold,
+      'maxDetections': maxDetections,
+      'generateAnnotatedImage': generateAnnotatedImage,
+    });
+    return _parseResults(results);
+  }
+
+  @override
+  Future<List<YOLOResult>> detectInImageFile(
+    String imagePath, {
+    required String modelPath,
+    required String task,
+    bool useBundledModel = false,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+    bool generateAnnotatedImage = false,
+  }) async {
+    final results = await methodChannel.invokeListMethod<dynamic>('detectInImageFile', {
+      'imagePath': imagePath,
+      'modelPath': modelPath,
+      'task': task,
+      'useBundledModel': useBundledModel,
+      'confidenceThreshold': confidenceThreshold,
+      'iouThreshold': iouThreshold,
+      'maxDetections': maxDetections,
+      'generateAnnotatedImage': generateAnnotatedImage,
+    });
+    return _parseResults(results);
+  }
+
+  /// Parses the raw results from the platform channel into YOLOResult objects.
+  ///
+  /// The results are expected to be a list of maps, where each map represents
+  /// a detection result with keys like 'classIndex', 'className', 'confidence',
+  /// 'boundingBox', etc.
+  List<YOLOResult> _parseResults(List<dynamic>? results) {
+    if (results == null || results.isEmpty) {
+      return <YOLOResult>[];
+    }
+
+    return results
+        .whereType<Map<dynamic, dynamic>>()
+        .map((result) => YOLOResult.fromMap(result))
+        .toList();
   }
 }
