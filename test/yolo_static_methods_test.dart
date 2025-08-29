@@ -3,6 +3,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ultralytics_yolo/yolo.dart';
+import 'package:ultralytics_yolo/yolo_platform_interface.dart';
+import 'package:ultralytics_yolo/yolo_result.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +42,8 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, null);
     });
+
+
 
     test('checkModelExists returns model information', () async {
       final result = await YOLO.checkModelExists('test_model.tflite');
@@ -231,6 +235,176 @@ void main() {
       expect(result['exists'], false);
       expect(result['path'], 'model.tflite');
       expect(result['error'], contains('Platform error'));
+    });
+  });
+
+  group('YOLO Static Detection Methods', () {
+    const MethodChannel channel = MethodChannel('yolo_single_image_channel');
+    final List<MethodCall> log = <MethodCall>[];
+
+    setUp(() {
+      log.clear();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+            log.add(methodCall);
+
+            switch (methodCall.method) {
+              case 'detectInImage':
+                return [
+                  {
+                    'classIndex': 0,
+                    'className': 'person',
+                    'confidence': 0.95,
+                    'boundingBox': {'left': 100.0, 'top': 100.0, 'right': 200.0, 'bottom': 300.0},
+                    'normalizedBox': {'left': 0.1, 'top': 0.1, 'right': 0.2, 'bottom': 0.3},
+                  },
+                ];
+              case 'detectInImageFile':
+                return [
+                  {
+                    'classIndex': 1,
+                    'className': 'car',
+                    'confidence': 0.87,
+                    'boundingBox': {'left': 50.0, 'top': 50.0, 'right': 150.0, 'bottom': 100.0},
+                    'normalizedBox': {'left': 0.05, 'top': 0.05, 'right': 0.15, 'bottom': 0.1},
+                  },
+                ];
+              default:
+                return null;
+            }
+          });
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    test('detectInImage performs detection with image bytes', () async {
+      final imageBytes = Uint8List.fromList([1, 2, 3, 4, 5]);
+      final results = await YOLOPlatform.instance.detectInImage(
+        imageBytes,
+        modelPath: 'test_model.tflite',
+        task: 'detect',
+        confidenceThreshold: 0.5,
+        iouThreshold: 0.4,
+        maxDetections: 10,
+      );
+
+      expect(results, isA<List<YOLOResult>>());
+      expect(results.length, 1);
+      expect(results[0].className, 'person');
+      expect(results[0].confidence, 0.95);
+      expect(log.last.method, 'detectInImage');
+      expect(log.last.arguments['modelPath'], 'test_model.tflite');
+      expect(log.last.arguments['task'], 'detect');
+      expect(log.last.arguments['confidenceThreshold'], 0.5);
+      expect(log.last.arguments['iouThreshold'], 0.4);
+      expect(log.last.arguments['maxDetections'], 10);
+    });
+
+    test('detectInImageFile performs detection with file path', () async {
+      final results = await YOLOPlatform.instance.detectInImageFile(
+        '/path/to/image.jpg',
+        modelPath: 'test_model.tflite',
+        task: 'detect',
+        confidenceThreshold: 0.6,
+        iouThreshold: 0.5,
+        maxDetections: 5,
+      );
+
+      expect(results, isA<List<YOLOResult>>());
+      expect(results.length, 1);
+      expect(results[0].className, 'car');
+      expect(results[0].confidence, 0.87);
+      expect(log.last.method, 'detectInImageFile');
+      expect(log.last.arguments['imagePath'], '/path/to/image.jpg');
+      expect(log.last.arguments['modelPath'], 'test_model.tflite');
+      expect(log.last.arguments['task'], 'detect');
+      expect(log.last.arguments['confidenceThreshold'], 0.6);
+      expect(log.last.arguments['iouThreshold'], 0.5);
+      expect(log.last.arguments['maxDetections'], 5);
+    });
+
+    test('detectInImage handles platform exceptions', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+            log.add(methodCall);
+            if (methodCall.method == 'detectInImage') {
+              throw PlatformException(
+                code: 'DETECTION_ERROR',
+                message: 'Detection failed',
+              );
+            }
+            return null;
+          });
+
+      final imageBytes = Uint8List.fromList([1, 2, 3, 4, 5]);
+
+      expect(
+        () => YOLOPlatform.instance.detectInImage(
+          imageBytes,
+          modelPath: 'test_model.tflite',
+          task: 'detect',
+        ),
+        throwsA(isA<PlatformException>()),
+      );
+    });
+
+    test('detectInImageFile handles platform exceptions', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
+            log.add(methodCall);
+            if (methodCall.method == 'detectInImageFile') {
+              throw PlatformException(
+                code: 'FILE_NOT_FOUND',
+                message: 'Image file not found',
+              );
+            }
+            return null;
+          });
+
+      expect(
+        () => YOLOPlatform.instance.detectInImageFile(
+          '/invalid/path.jpg',
+          modelPath: 'test_model.tflite',
+          task: 'detect',
+        ),
+        throwsA(isA<PlatformException>()),
+      );
+    });
+
+    test('detectInImage with default parameters', () async {
+      final imageBytes = Uint8List.fromList([1, 2, 3, 4, 5]);
+      await YOLOPlatform.instance.detectInImage(
+        imageBytes,
+        modelPath: 'test_model.tflite',
+        task: 'detect',
+      );
+
+      expect(log.isNotEmpty, true);
+      expect(log.last.method, 'detectInImage');
+      expect(log.last.arguments['confidenceThreshold'], 0.25);
+      expect(log.last.arguments['iouThreshold'], 0.45);
+      expect(log.last.arguments['maxDetections'], 100);
+    });
+
+    test('detectInImageFile with custom parameters', () async {
+      await YOLOPlatform.instance.detectInImageFile(
+        '/path/to/image.jpg',
+        modelPath: 'custom_model.tflite',
+        task: 'segment',
+        confidenceThreshold: 0.8,
+        iouThreshold: 0.3,
+        maxDetections: 50,
+      );
+
+      expect(log.isNotEmpty, true);
+      expect(log.last.method, 'detectInImageFile');
+      expect(log.last.arguments['task'], 'segment');
+      expect(log.last.arguments['confidenceThreshold'], 0.8);
+      expect(log.last.arguments['iouThreshold'], 0.3);
+      expect(log.last.arguments['maxDetections'], 50);
     });
   });
 }

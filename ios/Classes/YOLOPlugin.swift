@@ -140,6 +140,90 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
     ]
   }
 
+  private func performStaticImageDetection(
+    imageData: Data,
+    modelPath: String,
+    task: YOLOTask,
+    confidenceThreshold: Float,
+    iouThreshold: Float,
+    maxDetections: Int,
+    generateAnnotatedImage: Bool,
+    result: @escaping FlutterResult
+  ) async {
+    do {
+      // Create a temporary instance for static detection
+      let instanceId = "static_\(UUID().uuidString)"
+      YOLOInstanceManager.shared.createInstance(instanceId: instanceId)
+      
+      // Load the model
+      try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        YOLOInstanceManager.shared.loadModel(
+          instanceId: instanceId,
+          modelName: modelPath,
+          task: task,
+          useGpu: true
+        ) { modelResult in
+          switch modelResult {
+          case .success:
+            continuation.resume()
+          case .failure(let error):
+            continuation.resume(throwing: error)
+          }
+        }
+      }
+      
+      // Perform prediction with custom thresholds
+      if let resultDict = YOLOInstanceManager.shared.predict(
+        instanceId: instanceId,
+        imageData: imageData,
+        confidenceThreshold: Double(confidenceThreshold),
+        iouThreshold: Double(iouThreshold)
+      ) {
+        // Process results to match expected format
+        var processedResults: [[String: Any]] = []
+        
+        if let detections = resultDict["detections"] as? [[String: Any]] {
+          let limitedDetections = Array(detections.prefix(maxDetections))
+          processedResults = limitedDetections
+        }
+        
+        var finalResult: [String: Any] = [
+          "detections": processedResults,
+          "inferenceTime": resultDict["inferenceTime"] ?? 0.0,
+          "preprocessTime": resultDict["preprocessTime"] ?? 0.0,
+          "postprocessTime": resultDict["postprocessTime"] ?? 0.0
+        ]
+        
+        // Add annotated image if requested
+        if generateAnnotatedImage, let annotatedImageData = resultDict["annotatedImage"] as? Data {
+          finalResult["annotatedImage"] = FlutterStandardTypedData(bytes: annotatedImageData)
+        }
+        
+        result(finalResult)
+      } else {
+        result(
+          FlutterError(
+            code: "inference_error",
+            message: "Failed to run inference",
+            details: nil
+          )
+        )
+      }
+      
+      // Clean up temporary instance
+      YOLOInstanceManager.shared.removeInstance(instanceId: instanceId)
+      
+    } catch {
+      result(
+        FlutterError(
+          code: "model_load_error",
+          message: "Failed to load model: \(error.localizedDescription)",
+          details: nil
+        )
+      )
+    }
+  }
+
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     Task { @MainActor in
       switch call.method {
@@ -350,6 +434,75 @@ public class YOLOPlugin: NSObject, FlutterPlugin {
             )
           )
         }
+
+      case "detectInImage":
+        guard let args = call.arguments as? [String: Any],
+          let imageData = args["imageData"] as? FlutterStandardTypedData,
+          let modelPath = args["modelPath"] as? String,
+          let taskString = args["task"] as? String
+        else {
+          result(
+            FlutterError(
+              code: "bad_args", message: "Invalid arguments for detectInImage", details: nil)
+          )
+          return
+        }
+
+        let task = YOLOTask.fromString(taskString)
+        let confidenceThreshold = args["confidenceThreshold"] as? Float ?? 0.25
+        let iouThreshold = args["iouThreshold"] as? Float ?? 0.4
+        let maxDetections = args["maxDetections"] as? Int ?? 100
+        let generateAnnotatedImage = args["generateAnnotatedImage"] as? Bool ?? false
+
+        await performStaticImageDetection(
+          imageData: imageData.data,
+          modelPath: modelPath,
+          task: task,
+          confidenceThreshold: confidenceThreshold,
+          iouThreshold: iouThreshold,
+          maxDetections: maxDetections,
+          generateAnnotatedImage: generateAnnotatedImage,
+          result: result
+        )
+
+      case "detectInImageFile":
+        guard let args = call.arguments as? [String: Any],
+          let imagePath = args["imagePath"] as? String,
+          let modelPath = args["modelPath"] as? String,
+          let taskString = args["task"] as? String
+        else {
+          result(
+            FlutterError(
+              code: "bad_args", message: "Invalid arguments for detectInImageFile", details: nil)
+          )
+          return
+        }
+
+        let task = YOLOTask.fromString(taskString)
+        let confidenceThreshold = args["confidenceThreshold"] as? Float ?? 0.25
+        let iouThreshold = args["iouThreshold"] as? Float ?? 0.4
+        let maxDetections = args["maxDetections"] as? Int ?? 100
+        let generateAnnotatedImage = args["generateAnnotatedImage"] as? Bool ?? false
+
+        // Load image from file path
+        guard let imageData = FileManager.default.contents(atPath: imagePath) else {
+          result(
+            FlutterError(
+              code: "file_not_found", message: "Image file not found at path: \(imagePath)", details: nil)
+          )
+          return
+        }
+
+        await performStaticImageDetection(
+          imageData: imageData,
+          modelPath: modelPath,
+          task: task,
+          confidenceThreshold: confidenceThreshold,
+          iouThreshold: iouThreshold,
+          maxDetections: maxDetections,
+          generateAnnotatedImage: generateAnnotatedImage,
+          result: result
+        )
 
       default:
         result(FlutterMethodNotImplemented)

@@ -390,4 +390,33 @@ public class YOLO {
     }
     return self(uiImage, returnAnnotatedImage: returnAnnotatedImage)
   }
+
+  /// Performs static image prediction with custom confidence and IoU thresholds
+  public func predictStatic(
+    _ uiImage: UIImage,
+    confidenceThreshold: Double? = nil,
+    iouThreshold: Double? = nil,
+    returnAnnotatedImage: Bool = true
+  ) -> YOLOResult {
+    // Store original thresholds
+    let originalConfThreshold = self.confidenceThreshold
+    let originalIouThreshold = self.iouThreshold
+    
+    // Apply custom thresholds if provided
+    if let confThreshold = confidenceThreshold {
+      self.confidenceThreshold = confThreshold
+    }
+    if let iouThres = iouThreshold {
+      self.iouThreshold = iouThres
+    }
+    
+    // Perform prediction
+    let result = self.callAsFunction(uiImage, returnAnnotatedImage: returnAnnotatedImage)
+    
+    // Restore original thresholds
+    self.confidenceThreshold = originalConfThreshold
+    self.iouThreshold = originalIouThreshold
+    
+    return result
+  }
 }

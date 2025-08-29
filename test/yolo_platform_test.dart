@@ -1,8 +1,10 @@
 // Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:ultralytics_yolo/yolo_platform_interface.dart';
+import 'package:ultralytics_yolo/yolo_result.dart';
 
 class MockYOLOPlatform with MockPlatformInterfaceMixin implements YOLOPlatform {
   @override
@@ -11,6 +13,30 @@ class MockYOLOPlatform with MockPlatformInterfaceMixin implements YOLOPlatform {
   @override
   Future<void> setModel(int viewId, String modelPath, String task) =>
       Future.value();
+
+  @override
+  Future<List<YOLOResult>> detectInImage(
+    Uint8List imageBytes, {
+    required String modelPath,
+    required String task,
+    bool useBundledModel = false,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+    bool generateAnnotatedImage = false,
+  }) => Future.value([]);
+
+  @override
+  Future<List<YOLOResult>> detectInImageFile(
+    String imagePath, {
+    required String modelPath,
+    required String task,
+    bool useBundledModel = false,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+    bool generateAnnotatedImage = false,
+  }) => Future.value([]);
 }
 
 class _UnimplementedYOLOPlatform extends YOLOPlatform {
@@ -24,6 +50,30 @@ class _FakePlatform implements YOLOPlatform {
 
   @override
   Future<void> setModel(int viewId, String modelPath, String task) async {}
+
+  @override
+  Future<List<YOLOResult>> detectInImage(
+    Uint8List imageBytes, {
+    required String modelPath,
+    required String task,
+    bool useBundledModel = false,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+    bool generateAnnotatedImage = false,
+  }) async => [];
+
+  @override
+  Future<List<YOLOResult>> detectInImageFile(
+    String imagePath, {
+    required String modelPath,
+    required String task,
+    bool useBundledModel = false,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+    bool generateAnnotatedImage = false,
+  }) async => [];
 }
 
 void main() {

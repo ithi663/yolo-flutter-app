@@ -123,7 +123,6 @@ class YOLOBundledModels {
       case YOLOTask.classify:
       case YOLOTask.pose:
       case YOLOTask.obb:
-      default:
         preferredModel = 'yolo11n';
         break;
     }

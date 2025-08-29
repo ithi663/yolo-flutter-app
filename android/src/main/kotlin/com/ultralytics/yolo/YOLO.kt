@@ -45,6 +45,8 @@ class YOLO(
                 // Allow FP16 precision for faster computation
                 setAllowFp16PrecisionForFp32(true)
                 
+                // useGpu is handled in individual predictors
+                
                 // Log configuration
                 Log.d(TAG, "Interpreter options: threads=${Runtime.getRuntime().availableProcessors()}, FP16 enabled")
             }
@@ -59,7 +61,7 @@ class YOLO(
         when (task) {
             YOLOTask.DETECT -> ObjectDetector(context, modelPath, labels, useGpu, options)
             YOLOTask.SEGMENT -> Segmenter(context, modelPath, labels, useGpu, options)
-            YOLOTask.CLASSIFY -> Classifier(context, modelPath, labels, useGpu, options, classifierOptions)
+            YOLOTask.CLASSIFY -> Classifier(context, modelPath, labels, useGpu) // Classifier doesn't accept options
             YOLOTask.POSE -> PoseEstimator(context, modelPath, labels, useGpu, customOptions = options)
             YOLOTask.OBB -> ObbDetector(context, modelPath, labels, useGpu, options)
         }
@@ -81,19 +83,10 @@ class YOLO(
      * @param rotateForCamera Whether to rotate the image for camera processing, defaults to false for standard bitmap inference
      */
     fun predict(bitmap: Bitmap, rotateForCamera: Boolean = false): YOLOResult {
-        val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera, isLandscape = false)
-        
-        // Don't create annotated image for classification tasks to save memory and processing time
-        val annotatedImage = if (task == YOLOTask.CLASSIFY) {
-            Log.d(TAG, "Skipping annotation for CLASSIFY task")
-            null
-        } else {
-            drawAnnotations(bitmap, result, rotateForCamera)
-        }
-        
+        val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera)
         return result.copy(
             originalImage = bitmap,
-            annotatedImage = annotatedImage
+            annotatedImage = null // Annotated image will be generated separately when needed
         )
     }
 
@@ -103,7 +96,7 @@ class YOLO(
      */
     fun predict(imageProxy: ImageProxy): YOLOResult? {
         val bitmap = ImageUtils.toBitmap(imageProxy) ?: return null
-        val result = predictor.predict(bitmap, imageProxy.width, imageProxy.height, rotateForCamera = true, isLandscape = false)
+        val result = predictor.predict(bitmap, imageProxy.width, imageProxy.height, rotateForCamera = true)
         return result.copy(
             originalImage = bitmap,
             annotatedImage = drawAnnotations(bitmap, result, rotateForCamera = true)
@@ -117,7 +110,7 @@ class YOLO(
     fun predict(imageUri: Uri): YOLOResult? {
         try {
             val bitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
-            val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false, isLandscape = false)
+            val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false)
             return result.copy(
                 originalImage = bitmap,
                 annotatedImage = drawAnnotations(bitmap, result, rotateForCamera = false)
@@ -135,7 +128,7 @@ class YOLO(
     suspend fun predict(imageUrl: String): YOLOResult? = withContext(Dispatchers.IO) {
         try {
             val bitmap = BitmapFactory.decodeStream(URL(imageUrl).openStream())
-            val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false, isLandscape = false)
+            val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false)
             return@withContext result.copy(
                 originalImage = bitmap,
                 annotatedImage = drawAnnotations(bitmap, result, rotateForCamera = false)
@@ -144,6 +137,43 @@ class YOLO(
             Log.e(TAG, "Failed to load image from URL: ${e.message}")
             return@withContext null
         }
+    }
+
+    /**
+     * Predict using a bitmap with configurable parameters for static image processing
+     * @param bitmap The bitmap to process
+     * @param confidence Confidence threshold (0.0 to 1.0)
+     * @param iou IoU threshold for NMS (0.0 to 1.0)
+     * @param maxDetections Maximum number of detections to return
+     * @param generateAnnotatedImage Whether to generate an annotated image
+     * @return YOLOResult with detection results
+     */
+    fun predictStatic(
+        bitmap: Bitmap,
+        confidence: Float = 0.25f,
+        iou: Float = 0.45f,
+        maxDetections: Int = 300,
+        generateAnnotatedImage: Boolean = false
+    ): YOLOResult {
+        // Set thresholds
+        setConfidenceThreshold(confidence)
+        setIouThreshold(iou)
+        setNumItemsThreshold(maxDetections)
+        
+        // Run prediction
+        val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false)
+        
+        // Generate annotated image if requested
+        val annotatedImage = if (generateAnnotatedImage) {
+            drawAnnotations(bitmap, result, rotateForCamera = false)
+        } else {
+            null
+        }
+        
+        return result.copy(
+            originalImage = bitmap,
+            annotatedImage = annotatedImage
+        )
     }
 
     /**

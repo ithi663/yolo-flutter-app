@@ -19,6 +19,30 @@ class MockYOLOPlatform with MockPlatformInterfaceMixin implements YOLOPlatform {
   @override
   Future<void> setModel(int viewId, String modelPath, String task) =>
       Future.value();
+
+  @override
+  Future<List<YOLOResult>> detectInImage(
+    Uint8List imageBytes, {
+    required String modelPath,
+    required String task,
+    bool useBundledModel = false,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+    bool generateAnnotatedImage = false,
+  }) => Future.value([]);
+
+  @override
+  Future<List<YOLOResult>> detectInImageFile(
+    String imagePath, {
+    required String modelPath,
+    required String task,
+    bool useBundledModel = false,
+    double confidenceThreshold = 0.25,
+    double iouThreshold = 0.45,
+    int maxDetections = 100,
+    bool generateAnnotatedImage = false,
+  }) => Future.value([]);
 }
 
 void main() {
