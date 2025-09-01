@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:ultralytics_yolo/yolo.dart';
+import 'package:ultralytics_yolo_example/services/model_manager.dart';
+import 'package:ultralytics_yolo_example/models/model_type.dart';
 
 /// A screen that demonstrates YOLO inference on a single image.
 ///
@@ -27,9 +29,9 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
   Uint8List? _imageBytes;
   Uint8List? _annotatedImage;
 
-  late YOLO _yolo;
+  YOLO? _yolo; // nullable to allow safe dispose
   String _modelPathForYOLO =
-      'yolo11n-seg'; // Default asset path for non-iOS or if local copy fails
+      'yolo11n-seg.tflite'; // Default asset path for Android or if local copy fails
   bool _isModelReady = false;
 
   // Name of the .mlpackage directory in local storage (after unzipping)
@@ -43,6 +45,19 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
   void initState() {
     super.initState();
     _initializeYOLO();
+  }
+
+  @override
+  void dispose() {
+    // Ensure model resources are released
+    final yolo = _yolo;
+    _yolo = null;
+    if (yolo != null) {
+      yolo.dispose().catchError((e) {
+        debugPrint('Error disposing YOLO instance: $e');
+      });
+    }
+    super.dispose();
   }
 
   /// Initializes the YOLO model for inference
@@ -69,25 +84,44 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
       }
     }
 
-    _yolo = YOLO(modelPath: _modelPathForYOLO, task: YOLOTask.segment);
+    // Resolve Android model path via ModelManager to ensure .tflite filename
+    if (Platform.isAndroid) {
+      try {
+        final manager = ModelManager();
+        final resolvedPath = await manager.getModelPath(ModelType.segment);
+        if (!mounted) return;
+        if (resolvedPath != null) {
+          _modelPathForYOLO = resolvedPath;
+          debugPrint('Android: Using resolved model path: $_modelPathForYOLO');
+        } else {
+          // Fall back to the bundled asset filename
+          _modelPathForYOLO = 'yolo11n-seg.tflite';
+          debugPrint('Android: Falling back to asset filename: $_modelPathForYOLO');
+        }
+      } catch (e) {
+        debugPrint('Error resolving Android model path: $e');
+        _modelPathForYOLO = 'yolo11n-seg.tflite';
+      }
+    }
+
+    final yolo = YOLO(modelPath: _modelPathForYOLO, task: YOLOTask.segment);
+    _yolo = yolo;
 
     try {
-      await _yolo.loadModel();
-      if (mounted) {
-        setState(() {
-          _isModelReady = true;
-        });
-      }
+      await yolo.loadModel();
+      if (!mounted) return;
+      setState(() {
+        _isModelReady = true;
+      });
       debugPrint(
         'YOLO model initialized. Path: $_modelPathForYOLO, Ready: $_isModelReady',
       );
     } catch (e) {
       debugPrint('Error loading YOLO model: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading model: $e')));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading model: $e')));
     }
   }
 
@@ -219,19 +253,21 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
   Future<void> _pickAndPredict() async {
     if (!_isModelReady) {
       debugPrint('Model not ready yet for inference.');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Model is loading, please wait...')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Model is loading, please wait...')),
+      );
       return;
     }
     final XFile? file = await _picker.pickImage(source: ImageSource.gallery);
     if (file == null) return;
 
-    final bytes = await file.readAsBytes();
-    final result = await _yolo.predict(bytes);
-    if (mounted) {
+    try {
+      final bytes = await file.readAsBytes();
+      final yolo = _yolo;
+      if (yolo == null) return;
+      final result = await yolo.predict(bytes);
+      if (!mounted) return;
       setState(() {
         if (result.containsKey('boxes') && result['boxes'] is List) {
           _detections = List<Map<String, dynamic>>.from(result['boxes']);
@@ -248,6 +284,12 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
 
         _imageBytes = bytes;
       });
+    } catch (e) {
+      debugPrint('Error during prediction: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Prediction error: $e')),
+      );
     }
   }
 

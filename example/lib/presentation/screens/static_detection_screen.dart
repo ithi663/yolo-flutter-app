@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ultralytics_yolo/yolo_platform_interface.dart';
 import 'package:ultralytics_yolo/yolo_result.dart';
+import 'package:ultralytics_yolo_example/services/model_manager.dart';
+import 'package:ultralytics_yolo_example/models/model_type.dart';
 
 /// A screen that demonstrates static YOLO detection methods.
 ///
@@ -53,6 +55,70 @@ class _StaticDetectionScreenState extends State<StaticDetectionScreen> {
     'pose',
     'obb'
   ];
+
+  /// Resolve model path for Android ensuring .tflite filename with proper task suffix.
+  /// For iOS and other platforms, we keep the previous behavior.
+  Future<String> _resolveModelPath() async {
+    if (!Platform.isAndroid) {
+      // iOS/macOS: existing code relies on platform side to resolve names
+      return _selectedModel;
+    }
+
+    String suffix = '';
+    switch (_selectedTask) {
+      case 'segment':
+        suffix = '-seg';
+        break;
+      case 'classify':
+        suffix = '-cls';
+        break;
+      case 'pose':
+        suffix = '-pose';
+        break;
+      case 'obb':
+        suffix = '-obb';
+        break;
+      case 'detect':
+      default:
+        suffix = '';
+    }
+
+    // If user kept yolo11n, try ModelManager for robust lookup/download
+    if (_selectedModel == 'yolo11n') {
+      final manager = ModelManager();
+      ModelType modelType;
+      switch (_selectedTask) {
+        case 'segment':
+          modelType = ModelType.segment;
+          break;
+        case 'classify':
+          modelType = ModelType.classify;
+          break;
+        case 'pose':
+          modelType = ModelType.pose;
+          break;
+        case 'obb':
+          modelType = ModelType.obb;
+          break;
+        case 'detect':
+        default:
+          modelType = ModelType.detect;
+      }
+
+      try {
+        final resolved = await manager.getModelPath(modelType);
+        if (resolved != null) {
+          return resolved; // May be asset filename or absolute path
+        }
+      } catch (_) {
+        // fall through to filename fallback
+      }
+    }
+
+    // Fallback: construct filename with extension for Android assets
+    final base = _selectedModel + suffix;
+    return '$base.tflite';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -386,8 +452,10 @@ class _StaticDetectionScreenState extends State<StaticDetectionScreen> {
   Future<void> _pickImage() async {
     try {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (!mounted) return;
       if (image != null) {
         final imageBytes = await image.readAsBytes();
+        if (!mounted) return;
         setState(() {
           _selectedImage = File(image.path);
           _imageBytes = imageBytes;
@@ -396,6 +464,7 @@ class _StaticDetectionScreenState extends State<StaticDetectionScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _statusMessage = 'Error selecting image: $e';
       });
@@ -405,6 +474,7 @@ class _StaticDetectionScreenState extends State<StaticDetectionScreen> {
   Future<void> _detectInImage() async {
     if (_imageBytes == null) return;
 
+    if (!mounted) return;
     setState(() {
       _isProcessing = true;
       _statusMessage = 'Running detectInImage...';
@@ -412,24 +482,28 @@ class _StaticDetectionScreenState extends State<StaticDetectionScreen> {
     });
 
     try {
+      final modelPathArg = await _resolveModelPath();
       final result = await YOLOPlatform.instance.detectInImage(
         _imageBytes!,
-        modelPath: _selectedModel,
+        modelPath: modelPathArg,
         task: _selectedTask,
         confidenceThreshold: _confidenceThreshold,
         iouThreshold: _iouThreshold,
         maxDetections: _maxDetections,
       );
 
+      if (!mounted) return;
       setState(() {
         _detections = result;
         _statusMessage = 'detectInImage completed. Found ${result.length} objects.';
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _statusMessage = 'Error in detectInImage: $e';
       });
     } finally {
+      if (!mounted) return;
       setState(() {
         _isProcessing = false;
       });
@@ -439,6 +513,7 @@ class _StaticDetectionScreenState extends State<StaticDetectionScreen> {
   Future<void> _detectInImageFile() async {
     if (_selectedImage == null) return;
 
+    if (!mounted) return;
     setState(() {
       _isProcessing = true;
       _statusMessage = 'Running detectInImageFile...';
@@ -446,24 +521,28 @@ class _StaticDetectionScreenState extends State<StaticDetectionScreen> {
     });
 
     try {
+      final modelPathArg = await _resolveModelPath();
       final result = await YOLOPlatform.instance.detectInImageFile(
         _selectedImage!.path,
-        modelPath: _selectedModel,
+        modelPath: modelPathArg,
         task: _selectedTask,
         confidenceThreshold: _confidenceThreshold,
         iouThreshold: _iouThreshold,
         maxDetections: _maxDetections,
       );
 
+      if (!mounted) return;
       setState(() {
         _detections = result;
         _statusMessage = 'detectInImageFile completed. Found ${result.length} objects.';
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _statusMessage = 'Error in detectInImageFile: $e';
       });
     } finally {
+      if (!mounted) return;
       setState(() {
         _isProcessing = false;
       });
